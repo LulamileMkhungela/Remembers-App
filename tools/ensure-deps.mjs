@@ -2,10 +2,11 @@
 /**
  * Dependency guard.
  *
- * The sandbox/CI snapshot does not keep node_modules, so `npm start` runs this
- * first: it checks the four packages the pipeline cannot work without and
- * installs them once if any are missing. If the install cannot run (no network),
- * it says exactly what is missing instead of letting OCR fail quietly later.
+ * A fresh checkout (or a container that drops node_modules between runs) has no
+ * packages, so `npm start` runs this first: it checks the four packages the
+ * pipeline cannot work without and installs them once if any are missing. If the
+ * install cannot run (no network), it says exactly what is missing instead of
+ * letting OCR fail quietly later.
  */
 import fs from "node:fs";
 import path from "node:path";

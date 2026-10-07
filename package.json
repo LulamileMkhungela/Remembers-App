@@ -2,7 +2,7 @@
   "name": "remembers-app",
   "version": "1.0.0",
   "private": true,
-  "description": "Your Phone Remembers - on-device semantic memory search for screenshots, photos, notes and saved pages",
+  "description": "Your Phone Remembers \u2014 on-device semantic search over screenshots, photos, notes and saved pages",
   "type": "module",
   "scripts": {
     "prestart": "node tools/ensure-deps.mjs",
@@ -11,7 +11,8 @@
     "check:ui": "node tools/check-ui.mjs",
     "test:queries": "node tools/test-queries.mjs",
     "test:ui": "node tools/ui-test.mjs",
-    "samples": "python3 tools/gen-samples.py"
+    "samples": "python3 tools/gen-samples.py",
+    "ingest": "node tools/ingest-folder.mjs"
   },
   "dependencies": {
     "onnxruntime-node": "1.14.0",
@@ -22,5 +23,7 @@
     "@ryanstark24/sfgraph-models": "1.1.3",
     "@tesseract.js-data/eng": "1.0.0",
     "linkedom": "0.18.12"
-  }
+  },
+  "author": "Lulamile Mkhungela",
+  "license": "MIT"
 }

@@ -1,6 +1,9 @@
 # Your Phone Remembers
 
-Search your phone by **meaning**, not filenames.
+**Search your phone by meaning, not filenames.** Developed by **Lulamile Mkhungela**.
+
+> A full write-up of the project — the idea, how it works, and what is real versus
+> sample data — is in [`docs/WRITEUP.md`](docs/WRITEUP.md).
 
 You took a screenshot six months ago. You don't remember where it is. You ask:
 
@@ -105,9 +108,31 @@ number, a site, a time, a reference, an amount, a person), and every bullet carr
 the memory it came from. The **How it connects** panel shows the entity graph, and
 **When it happened** shows the matches on a timeline.
 
-**Real ingestion.** Add your own data in the UI (drop screenshots, paste notes) or
-over the API. Images go through OCR; text is embedded directly. The same content
-imported twice is remembered once.
+**Real ingestion.** Add your own data in the UI (drop screenshots, paste notes), from
+the command line, or over the API. Images go through OCR; text is embedded directly.
+The same content imported twice is remembered once.
+
+```bash
+npm start
+npm run ingest -- ~/Pictures/Screenshots     # read your real screenshots
+npm run ingest -- ./phone-dump --source Camera --location "Johannesburg"
+```
+
+### What is real here, and what is sample
+
+Worth stating plainly:
+
+- **Real:** OCR reads actual pixels (every memory reports its own confidence and read
+  time), the embeddings are real 384-d vectors from a real model, the index is built
+  from the data and persisted, and every answer is extracted from your documents with
+  citations. `npm run verify` proves the model and OCR work on the machine you are on.
+- **Sample:** the phone library that ships with the app is *generated* — 19 screenshots
+  and photos drawn from scratch by `tools/gen-samples.py`, plus 22 notes, messages,
+  emails and saved pages in `samples/notes.json`. It is realistic and deliberately
+  clean so OCR has something honest to read, but it is not a real phone.
+
+Point `npm run ingest` at your own screenshots, or drag them into **＋ Add memories**,
+and the same pipeline runs on your real data. No API keys are involved anywhere.
 
 ---
 
@@ -136,6 +161,7 @@ tools/
   check-ui.mjs       static UI integrity checks (see below)
   test-queries.mjs   question -> expected value regression test
   ui-test.mjs        headless DOM test against a running server
+  ingest-folder.mjs  index real screenshots/photos from a folder on this machine
   ensure-deps.mjs    runs on `npm start`; installs packages if node_modules is gone
   dev-reload.sh      restart the server / rebuild the index (dev helper)
 ```
@@ -232,3 +258,7 @@ releases it on close.
   (needs Pillow) redraws all 19 images deterministically.
 - `./tools/dev-reload.sh --reset` restarts the server and rebuilds the index with
   fresh OCR — handy after changing the server code, which is cached at import time.
+
+---
+
+Developed by **Lulamile Mkhungela**. See [`docs/WRITEUP.md`](docs/WRITEUP.md).
