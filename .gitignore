@@ -1,5 +1,7 @@
 node_modules/
-.arena/
-npm-debug.log*
-.DS_Store
+data/
+models/
+public/vendor/
+__pycache__/
 *.log
+.DS_Store

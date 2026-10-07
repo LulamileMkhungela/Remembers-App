@@ -1,0 +1,178 @@
+{
+  "generated": "tools/gen-samples.py",
+  "items": [
+    {
+      "file": "whatsapp-lerato-mechanic.png",
+      "kind": "screenshot",
+      "app": "WhatsApp",
+      "title": "Chat with Lerato Mokoena",
+      "capturedAt": "2026-03-12T14:22:00+02:00",
+      "location": "Melville, Johannesburg",
+      "album": "Screenshots"
+    },
+    {
+      "file": "whatsapp-sipho-series.png",
+      "kind": "screenshot",
+      "app": "WhatsApp",
+      "title": "Chat with Sipho Ndlovu",
+      "capturedAt": "2026-08-02T20:41:00+02:00",
+      "location": "Sandton, Johannesburg",
+      "album": "Screenshots"
+    },
+    {
+      "file": "browser-cheapflights.png",
+      "kind": "screenshot",
+      "app": "Chrome",
+      "title": "Cheap Flights Express",
+      "capturedAt": "2026-04-18T21:07:00+02:00",
+      "location": "Johannesburg",
+      "album": "Screenshots"
+    },
+    {
+      "file": "airline-booking-lift.png",
+      "kind": "screenshot",
+      "app": "Lift Air",
+      "title": "Lift Air booking LT7X4QP",
+      "capturedAt": "2026-04-18T21:24:00+02:00",
+      "location": "Johannesburg",
+      "album": "Screenshots"
+    },
+    {
+      "file": "parking-level3-bay47.png",
+      "kind": "photo",
+      "app": "Camera",
+      "title": "Parking level 3 bay 47",
+      "capturedAt": "2026-06-27T11:52:00+02:00",
+      "location": "Mall of Africa, Waterfall City",
+      "album": "Screenshots"
+    },
+    {
+      "file": "guesthouse-wifi-card.png",
+      "kind": "photo",
+      "app": "Camera",
+      "title": "Guest house wifi card",
+      "capturedAt": "2026-09-14T18:03:00+02:00",
+      "location": "Dullstroom, Mpumalanga",
+      "album": "Screenshots"
+    },
+    {
+      "file": "sms-dentist-reminder.png",
+      "kind": "screenshot",
+      "app": "Messages",
+      "title": "Dentist appointment reminder",
+      "capturedAt": "2026-09-15T09:04:00+02:00",
+      "location": "Rosebank, Johannesburg",
+      "album": "Screenshots"
+    },
+    {
+      "file": "browser-washing-machine-e20.png",
+      "kind": "screenshot",
+      "app": "Chrome",
+      "title": "Fix E20 error on Bosch washing machine",
+      "capturedAt": "2025-12-03T19:38:00+02:00",
+      "location": "Johannesburg",
+      "album": "Screenshots"
+    },
+    {
+      "file": "instagram-pasta-recipe.png",
+      "kind": "screenshot",
+      "app": "Instagram",
+      "title": "Creamy garlic pasta recipe",
+      "capturedAt": "2026-02-09T19:12:00+02:00",
+      "location": "Johannesburg",
+      "album": "Screenshots"
+    },
+    {
+      "file": "instagram-jacket-sale.png",
+      "kind": "screenshot",
+      "app": "Instagram",
+      "title": "Padded winter jacket on sale",
+      "capturedAt": "2026-06-14T12:40:00+02:00",
+      "location": "Sandton City, Johannesburg",
+      "album": "Screenshots"
+    },
+    {
+      "file": "gym-timetable.png",
+      "kind": "screenshot",
+      "app": "PulseFit",
+      "title": "Gym class timetable",
+      "capturedAt": "2026-05-11T07:26:00+02:00",
+      "location": "Rosebank, Johannesburg",
+      "album": "Screenshots"
+    },
+    {
+      "file": "loadshedding-schedule.png",
+      "kind": "screenshot",
+      "app": "EskomSePush",
+      "title": "Load shedding schedule zone 7",
+      "capturedAt": "2026-07-21T16:41:00+02:00",
+      "location": "Randburg, Johannesburg",
+      "album": "Screenshots"
+    },
+    {
+      "file": "receipt-checkers.png",
+      "kind": "photo",
+      "app": "Camera",
+      "title": "Grocery receipt Fourways",
+      "capturedAt": "2026-10-03T17:58:00+02:00",
+      "location": "Fourways, Johannesburg",
+      "album": "Screenshots"
+    },
+    {
+      "file": "note-braai-checklist.png",
+      "kind": "screenshot",
+      "app": "Notes",
+      "title": "Braai Saturday checklist",
+      "capturedAt": "2026-03-06T08:15:00+02:00",
+      "location": "Johannesburg",
+      "album": "Screenshots"
+    },
+    {
+      "file": "note-mechanic-details.png",
+      "kind": "screenshot",
+      "app": "Notes",
+      "title": "Car service notes",
+      "capturedAt": "2026-03-13T07:02:00+02:00",
+      "location": "Melville, Johannesburg",
+      "album": "Screenshots"
+    },
+    {
+      "file": "maps-hiking-trail.png",
+      "kind": "screenshot",
+      "app": "Maps",
+      "title": "Kloofendal hiking trail",
+      "capturedAt": "2026-08-23T06:48:00+02:00",
+      "location": "Kloofendal, Roodepoort",
+      "album": "Screenshots"
+    },
+    {
+      "file": "browser-medical-aid-claim.png",
+      "kind": "screenshot",
+      "app": "Chrome",
+      "title": "Submit a health claim online",
+      "capturedAt": "2026-01-27T13:19:00+02:00",
+      "location": "Johannesburg",
+      "album": "Screenshots"
+    },
+    {
+      "file": "photo-sunset-city.png",
+      "kind": "photo",
+      "app": "Camera",
+      "title": "Johannesburg sunset photo",
+      "capturedAt": "2026-09-06T18:21:00+02:00",
+      "location": "Northcliff Hill, Johannesburg",
+      "album": "Camera Roll",
+      "caption": "Sunset over the Johannesburg skyline from Northcliff Hill, taken with Naledi after the hike."
+    },
+    {
+      "file": "photo-desk-tickets.png",
+      "kind": "photo",
+      "app": "Camera",
+      "title": "Desk with old tickets",
+      "capturedAt": "2026-04-22T09:34:00+02:00",
+      "location": "Johannesburg",
+      "album": "Camera Roll",
+      "caption": "Old concert tickets and the boarding pass stub from the Cape Town trip, kept on my desk."
+    }
+  ]
+}

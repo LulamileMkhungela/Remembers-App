@@ -1,620 +1,801 @@
-/**
- * Remembers — browser client.
- *
- * Vanilla ES modules, no build step, no network. Everything here talks to the
- * local API, which stands in for the on-device index.
- */
+/* Remembers App - UI.
+   Talks to the local server: real OCR, real on-device embeddings. */
 
-const $ = (sel, root = document) => root.querySelector(sel);
-const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
-
-const KIND_ICON = {
-  screenshot: '🖼', photo: '📷', note: '📝', email: '✉️', voice: '🎙',
-  event: '📅', contact: '👤', page: '🔖', message: '💬'
+const $ = (sel) => document.querySelector(sel);
+const el = (tag, cls, html) => {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (html !== undefined) node.innerHTML = html;
+  return node;
 };
+const esc = (s) =>
+  String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 const state = {
-  data: null,
-  lastQuestion: '',
-  library: [],
-  kindFilter: null,
+  query: "",
+  last: null,
+  kind: "",
+  busy: false,
+  documents: [],
   stats: null,
-  events: [],
-  advanced: new Set()
+  searchable: true,
+  drawer: { doc: null, tab: "image", boxes: true },
 };
 
-const CHIPS = [
-  { q: 'What was that website with the cheap flights I found?', wow: true },
-  { q: 'What was the name of the person who recommended that mechanic?', wow: true },
-  { q: 'How much was the car service?', wow: false },
-  { q: 'Where is that café with the wifi?', wow: false },
-  { q: 'What is the mechanic’s number?', wow: false },
-  { q: 'When did I look for flights?', wow: false },
-  { q: 'What did I save about focus?', wow: false },
-  { q: 'Show me my voice memos', wow: false }
-];
+/* --------------------------------------------------------------- helpers --- */
 
-/** Sample questions for the empty state — each one leans on a different source. */
-const SAMPLES = [
-  { icon: '✈️', title: 'The cheap flight', q: 'What was that website with the cheap flights I found?' },
-  { icon: '🔧', title: 'The mechanic', q: 'What was the name of the person who recommended that mechanic?' },
-  { icon: '💰', title: 'What it cost', q: 'How much was the car service?' },
-  { icon: '🎙', title: 'Against filenames', q: 'That idea I recorded in the shower' },
-  { icon: '📅', title: 'Across sources', q: 'What do I know about the Lisbon trip?' },
-  { icon: '🚫', title: 'When it doesn’t know', q: 'Where did I park the car?' }
-];
-
-// ── api ──────────────────────────────────────────────────────────────────────
-
-async function api(path, options) {
-  const res = await fetch(path, options);
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json();
-}
-
-const ask = (q, extra = {}) => api('/api/ask', {
-  method: 'POST',
-  headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ q, ...extra })
-});
-
-const searchOnly = (q) => api('/api/search', {
-  method: 'POST',
-  headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ q })
-});
-
-// ── helpers ──────────────────────────────────────────────────────────────────
-
-function esc(text = '') {
-  return String(text).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-}
-
-function highlight(text, terms = []) {
-  let html = esc(text);
-  for (const term of terms.filter((t) => t && t.length > 2)) {
-    const re = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-    html = html.replace(re, '<mark>$1</mark>');
-  }
-  return html;
-}
-
-function bar(pct) {
-  const clamped = Math.max(0, Math.min(1, pct));
-  return `<i><span style="width:${(clamped * 100).toFixed(1)}%"></span></i>`;
-}
-
-function whenLabel(ev) {
-  if (ev.daysAgo == null) return 'always on your phone';
-  return `${ev.when}`;
-}
-
-function confClass(label) {
-  return (label || '').toLowerCase();
-}
-
-// ── phone: ask ───────────────────────────────────────────────────────────────
-
-function renderChips() {
-  $('#chips').innerHTML = CHIPS
-    .map((c) => `<button class="chip${c.wow ? ' wow' : ''}" data-q="${esc(c.q)}">${esc(c.q)}</button>`)
-    .join('');
-}
-
-function renderEmpty() {
-  $('#empty-grid').innerHTML = SAMPLES
-    .map((s) => `<button class="empty-card" data-q="${esc(s.q)}"><b>${s.icon} ${esc(s.title)}</b>${esc(s.q)}</button>`)
-    .join('');
-}
-
-function thinking() {
-  const stages = ['reading the phone', 'text index', 'meaning space', 'ranking'];
-  $('#phone-body').innerHTML = `
-    <div class="thinking">
-      <div class="skeleton-line" style="width:72%"></div>
-      <div class="skeleton-line" style="width:46%"></div>
-      <div class="skeleton-line" style="width:58%"></div>
-      <div class="stages">${stages.map((s) => `<span>${s}</span>`).join('')}</div>
-    </div>`;
-}
-
-async function runQuestion(question) {
-  if (!question || !question.trim()) return;
-  state.lastQuestion = question.trim();
-  $('#ask-input').value = state.lastQuestion;
-  thinking();
+async function api(path, options = {}) {
+  const res = await fetch(path, {
+    headers: options.body instanceof FormData ? {} : { "Content-Type": "application/json" },
+    ...options,
+  });
+  const text = await res.text();
+  let data;
   try {
-    const data = await ask(state.lastQuestion);
-    state.data = data;
-    renderAnswer(data);
-    renderStats(data.meta);
-  } catch (error) {
-    $('#phone-body').innerHTML = `<div class="answer"><h2 class="hedged">Something broke</h2>
-      <p class="detail">${esc(error.message)}</p></div>`;
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
+  }
+  if (!res.ok) throw new Error(data.error || `request failed (${res.status})`);
+  return data;
+}
+
+function relativeDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const days = Math.round((Date.now() - d.getTime()) / 86400000);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${days} days ago`;
+  const months = Math.round(days / 30);
+  if (months < 12) return `${months} month${months === 1 ? "" : "s"} ago`;
+  const years = Math.round(months / 12);
+  return `${years} year${years === 1 ? "" : "s"} ago`;
+}
+
+function absoluteDate(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso || "";
+  return d.toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function highlightSnippet(snippet) {
+  if (!snippet) return "";
+  const { text, ranges } = snippet;
+  if (!ranges || !ranges.length) return esc(text);
+  let out = "";
+  let cursor = 0;
+  for (const [start, end] of ranges) {
+    if (start < cursor) continue;
+    out += esc(text.slice(cursor, start));
+    out += `<mark>${esc(text.slice(start, end))}</mark>`;
+    cursor = end;
+  }
+  out += esc(text.slice(cursor));
+  return out;
+}
+
+const KIND_GLYPH = { photo: "▣", screenshot: "▤", note: "✎", page: "❐", message: "✉", email: "✉" };
+
+/* ------------------------------------------------------------ status loop --- */
+
+async function refreshStatus() {
+  try {
+    const health = await api("/api/health");
+    const embed = health.embedder || {};
+    const embedLabel = $("#embedLabel");
+    const embedDot = $("#embedDot");
+    if (embed.ready) {
+      embedLabel.textContent = `MiniLM-L6 · 384-d · ${embed.avgMs || 0} ms/embed`;
+      embedDot.className = "dot dot-good";
+    } else {
+      embedLabel.textContent = "loading model…";
+      embedDot.className = "dot dot-live";
+    }
+    const seed = health.seed || {};
+    const indexDot = $("#indexDot");
+    const indexLabel = $("#indexLabel");
+    if (seed.running) {
+      indexLabel.textContent = `indexing ${seed.done}/${seed.total}`;
+      indexDot.className = "dot dot-live";
+    } else {
+      indexLabel.textContent = `${health.store.total} memories in index`;
+      indexDot.className = "dot dot-good";
+    }
+    await refreshStats();
+    return !seed.running;
+  } catch (err) {
+    $("#indexLabel").textContent = "server unavailable";
+    $("#indexDot").className = "dot dot-warn";
+    return true;
   }
 }
 
-// ── phone: answer rendering ──────────────────────────────────────────────────
+async function refreshStats() {
+  const stats = await api("/api/stats");
+  state.stats = stats;
+  const grid = $("#statsGrid");
+  const stats_rows = [
+    ["Memories", stats.total, `${Object.keys(stats.byKind).length} kinds · ${Object.keys(stats.bySource).length} sources`],
+    ["Read by OCR", stats.ocrDocs, stats.ocr.avgConfidence ? `${stats.ocr.avgConfidence}% avg confidence` : "—"],
+    ["Words indexed", stats.words.toLocaleString("en-ZA"), `${stats.entities} connected details`],
+    ["Source data", formatBytes(stats.bytes), stats.oldest ? `since ${absoluteDate(stats.oldest)}` : ""],
+  ];
+  grid.innerHTML = stats_rows
+    .map(
+      ([label, value, sub]) => `<div class="stat"><span>${esc(label)}</span><b>${esc(formatNum(value))}</b><small>${esc(sub)}</small></div>`
+    )
+    .join("");
+  $("#footerStats").textContent =
+    `${stats.total} memories · ${stats.ocr.jobs} images through OCR (${stats.ocr.avgMs} ms avg) · ` +
+    `embeddings ${stats.embedder.mode || "loading"} · ${stats.embedder.encoded || 0} vectors`;
+  $("#deviceBadge").textContent = stats.embedder.ready ? "models loaded" : "loading";
+  $("#galleryBadge").textContent = `${stats.total} items`;
+}
+
+function formatNum(v) {
+  if (typeof v === "number") return v.toLocaleString("en-ZA");
+  return v;
+}
+
+function formatBytes(b) {
+  if (!b) return "0 KB";
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(0)} KB`;
+  return `${(b / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/* ---------------------------------------------------------------- gallery --- */
+
+async function loadGallery() {
+  const { documents } = await api("/api/documents?limit=90&sort=recent");
+  state.documents = documents;
+  const gallery = $("#gallery");
+  if (!documents.length) {
+    gallery.innerHTML = `<p class="muted">Indexed screenshots, photos, notes and pages appear here.</p>`;
+    return;
+  }
+  gallery.innerHTML = "";
+  for (const doc of documents) {
+    const item = el("div", "gallery-item");
+    item.title = `${doc.title} — ${doc.source} (${absoluteDate(doc.capturedAt)})`;
+    if (doc.fileUrl) {
+      item.innerHTML = `<img src="${doc.fileUrl}" alt="${esc(doc.title)}" loading="lazy" />
+        <span class="g-tag">${esc(doc.title.slice(0, 34))}</span>`;
+    } else {
+      item.innerHTML = `<div class="g-glyph">${KIND_GLYPH[doc.kind] || "✎"}</div>
+        <span class="g-tag">${esc(doc.title.slice(0, 34))}</span>`;
+    }
+    item.addEventListener("click", () => openDrawer(doc.id));
+    gallery.appendChild(item);
+  }
+}
+
+/* ----------------------------------------------------------- suggestions --- */
+
+async function loadSuggestions() {
+  const { suggestions } = await api("/api/suggestions");
+  const row = $("#suggestions");
+  row.innerHTML = "";
+  for (const q of suggestions) {
+    const chip = el("button", "chip", esc(q));
+    chip.type = "button";
+    chip.addEventListener("click", () => {
+      $("#query").value = q;
+      runSearch(q);
+    });
+    row.appendChild(chip);
+  }
+}
+
+/* ----------------------------------------------------------------- search --- */
+
+function setPipeline(active) {
+  const pipeline = $("#pipeline");
+  if (!active) {
+    pipeline.hidden = true;
+    return;
+  }
+  pipeline.hidden = false;
+  const steps = [...pipeline.querySelectorAll(".pipeline-step")];
+  for (const s of steps) s.className = "pipeline-step";
+}
+
+function advancePipeline(step) {
+  const pipeline = $("#pipeline");
+  const steps = [...pipeline.querySelectorAll(".pipeline-step")];
+  const order = ["route", "embed", "retrieve", "compose"];
+  const idx = order.indexOf(step);
+  steps.forEach((s, i) => {
+    if (i < idx) s.className = "pipeline-step is-done";
+    else if (i === idx) s.className = "pipeline-step is-active";
+  });
+}
+
+async function runSearch(query, { keepPipeline = false } = {}) {
+  const q = (query ?? $("#query").value ?? "").trim();
+  state.query = q;
+  if (!q || state.busy) return;
+  state.busy = true;
+  $("#searchBtn").disabled = true;
+  setPipeline(true);
+  advancePipeline("route");
+  renderSearching();
+
+  try {
+    const payload = { query: q, limit: 12, kinds: state.kind ? [state.kind] : [] };
+    const timer1 = setTimeout(() => advancePipeline("embed"), 60);
+    const timer2 = setTimeout(() => advancePipeline("retrieve"), 220);
+    const timer3 = setTimeout(() => advancePipeline("compose"), 520);
+    const data = await api("/api/search", { method: "POST", body: JSON.stringify(payload) });
+    clearTimeout(timer1);
+    clearTimeout(timer2);
+    clearTimeout(timer3);
+    state.last = data;
+    advancePipeline("compose");
+    renderAnswer(data);
+    renderResults(data);
+    renderConnections(data);
+    renderTimeline(data);
+    setTimeout(() => setPipeline(false), 500);
+  } catch (err) {
+    $("#resultsBody").innerHTML = `<div class="empty-state"><p class="muted">Search failed: ${esc(err.message)}</p></div>`;
+    $("#answerBody").innerHTML = `<p class="muted">${esc(err.message)}</p>`;
+    setPipeline(false);
+  } finally {
+    state.busy = false;
+    $("#searchBtn").disabled = false;
+  }
+}
+
+function renderSearching() {
+  $("#answerBody").innerHTML = `
+    <div class="skeleton" style="height:26px;width:60%"></div>
+    <div class="skeleton" style="height:52px"></div>
+    <div class="skeleton" style="height:52px"></div>`;
+  $("#resultsBody").innerHTML = `<div class="result-list">
+    <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>`;
+  $("#answerBadge").textContent = "thinking…";
+}
+
+/* ---------------------------------------------------------------- render --- */
 
 function renderAnswer(data) {
-  const { answer, results, understanding, meta, timeline } = data;
-  const primary = results.find((r) => r.id === answer.primary) || results[0];
-  const body = $('#phone-body');
+  const body = $("#answerBody");
+  const a = data.answer;
+  $("#answerBadge").className = "badge " + (data.empty ? "badge-warn" : "badge-accent");
+  $("#answerBadge").textContent = data.empty
+    ? "no match"
+    : `answer · ${(data.timings.total / 1000).toFixed(2)}s · ${data.timings.indexed} memories searched`;
 
-  if (!results.length) {
+  if (data.empty) {
     body.innerHTML = `
-      <div class="answer">
-        <div class="qline"><span class="who">You asked</span> ${esc(data.question)}</div>
-        <h2 class="hedged">${esc(answer.headline)}</h2>
-        <p class="detail">${esc(answer.detail)}</p>
-        <div class="actions">
-          <button class="btn" data-q="Show me my screenshots">Browse Screenshots instead</button>
-          <button class="btn" data-q="Show me my photos">Browse Photos instead</button>
-        </div>
-      </div>`;
+      <div class="answer-headline">${esc(a.headline)}</div>
+      <p class="muted small">${esc((a.notes || [])[0] || "")}</p>
+      <div class="chip-row">${(a.followUps || []).map((f, i) => `<button class="chip" data-follow="${i}" type="button">${esc(f)}</button>`).join("")}</div>`;
+    bindFollowUps(body);
     return;
   }
 
-  const signals = answer.confidence.signals;
-  const bars = [
-    { name: 'match', v: Math.min(signals.match / 0.9, 1) },
-    { name: 'coverage', v: signals.coverage },
-    { name: 'margin', v: Math.min(signals.margin / 0.25, 1) },
-    { name: 'trust', v: signals.trust },
-    { name: 'breadth', v: Math.min(results.length / 3, 1) }
-  ];
-
-  const facts = (answer.facts || []).map((f) => {
-    const inner = `<span class="lab">${esc(f.label)}</span><b>${esc(f.value)}</b>`;
-    return f.from
-      ? `<button class="fact" data-open="${esc(f.from)}">${inner}</button>`
-      : `<span class="fact plain">${inner}</span>`;
-  }).join('');
-
-  const evidence = results.slice(0, 5).map((r) => evidenceCard(r, answer.primary)).join('');
+  const facts = [];
+  const top = data.results[0];
+  if (top) {
+    const pick = (type) => (top.entities || []).find((e) => e.type === type);
+    const phone = pick("phone");
+    const money = pick("money");
+    const date = pick("date");
+    const site = pick("website");
+    if (phone) facts.push(["Number", phone.label]);
+    if (money) facts.push(["Amount", money.label]);
+    if (site) facts.push(["Website", site.label]);
+    if (date) facts.push(["Date", date.label]);
+    if (top.location) facts.push(["Place", top.location]);
+  }
 
   body.innerHTML = `
-    <div class="answer">
-      <div class="qline">
-        <span class="who">You asked</span> “${esc(data.question)}”
-      </div>
-      <h2 class="${answer.hedged ? 'hedged' : ''}">${esc(answer.headline)}</h2>
-      <p class="detail">${esc(answer.detail)}</p>
-      ${facts ? `<div class="facts">${facts}</div>` : ''}
-      <div class="conf">
-        <span class="label ${confClass(answer.confidence.label)}">
-          <b>${esc(answer.confidence.label)}</b> confidence
-        </span>
-        <span class="bars">
-          ${bars.map((b, i) => `<i class="s${i}" title="${b.name}">${'<span>'}</i>`).join('')}
-        </span>
-        <span class="pct">${(answer.confidence.score * 100).toFixed(0)}%</span>
-      </div>
-      <div class="actions">
-        ${primary?.openTarget
-          ? `<a class="btn primary" href="${esc(primary.openTarget.href)}" ${primary.openTarget.type === 'view' || primary.openTarget.type === 'image' ? 'target="_blank" rel="noopener"' : ''} data-open-btn="${esc(primary.id)}">${esc(primary.openTarget.label)}</a>`
-          : ''}
-        <button class="btn" data-open="${esc(answer.primary)}">Full record</button>
-        <button class="btn ghost" data-explain="1">Why this answer</button>
-      </div>
-      <div id="explain-slot"></div>
+    <div class="answer-headline">${esc(a.headline)}</div>
+    <div class="answer-sub">${esc(data.routed.intent === "question" ? "Read your question as a question, then looked for the memory behind it." : "Matched against everything your phone remembers.")}</div>
+    ${facts.length ? `<div class="fact-row">${facts.slice(0, 4).map(([k, v]) => `<div class="fact"><span>${esc(k)}</span><span>${esc(v)}</span></div>`).join("")}</div>` : ""}
+    <ul class="answer-list">
+      ${a.bullets.map((b) => `<li>${esc(b.text)}<span class="answer-cite">in <b>${esc(b.docTitle)}</b> — ${esc(b.why)}</span></li>`).join("")}
+    </ul>
+    <div class="confidence-bar">
+      <span>confidence ${(a.confidence * 100).toFixed(0)}%</span>
+      <span class="meter"><i style="width:${Math.round(a.confidence * 100)}%"></i></span>
+      <span>${esc((a.notes || [])[0] || "")}</span>
     </div>
-
-    <div class="sect-title">Where it came from <span class="count">${results.length} of ${meta.indexed} items · ${meta.tookMs} ms</span></div>
-    ${evidence}
-    ${results.length > 5 ? `<button class="btn tiny" data-q="${esc(data.question)}" data-limit="12">Show ${results.length - 5} more</button>` : ''}
-
-    <div class="sect-title">The trail <span class="count">${timeline.filter((t) => t.onTheQuestionPath).length} of ${timeline.length} on this answer</span></div>
-    ${renderTimeline(timeline)}
-  `;
-
-  $('[data-explain]', body)?.addEventListener('click', () => toggleExplain(data));
-}
-
-function evidenceCard(r, primaryId) {
-  const isPrimary = r.id === primaryId;
-  const txtPct = Math.round(r.signals.lexical * 100) || 0;
-  const semPct = Math.round(r.signals.semantic * 100) || 0;
-  const terms = [...(r.signals.matchedWords || []), ...(r.signals.anchors || [])];
-  return `
-    <article class="ev${isPrimary ? ' primary' : ''}" data-open="${esc(r.id)}">
-      <div class="top">
-        <div class="ico">${KIND_ICON[r.kind] || '•'}</div>
-        <div class="head">
-          <b>${esc(r.title || r.summary || r.id)}</b>
-          <div class="meta">
-            <span class="pill">${esc(r.source)}</span>
-            ${r.app ? `<span>${esc(r.app)}</span>` : ''}
-            <span>${esc(r.daysAgo == null ? 'always on your phone' : r.daysAgo === 0 ? 'today' : `${r.daysAgo} days ago`)}</span>
-            ${r.location ? `<span>· ${esc(r.location)}</span>` : ''}
-          </div>
-        </div>
-        <div class="score"><b>${(r.score * 100).toFixed(0)}</b>score</div>
-      </div>
-      ${r.snippet ? `<p class="snip">${highlight(r.snippet, terms)}</p>` : ''}
-      <div class="split" title="text match ${txtPct}% · meaning match ${semPct}%">
-        <i class="txt" style="width:${Math.max(2, txtPct)}%"></i>
-        <i class="sem" style="width:${Math.max(2, semPct)}%"></i>
-        <i class="rest"></i>
-      </div>
-      <div class="why">${(r.why || []).map((w) => `<span>${esc(w)}</span>`).join('')}</div>
-    </article>`;
-}
-
-function renderTimeline(timeline) {
-  if (!timeline.length) return '';
-  const nodes = timeline.map((t) => `
-    <div class="tt-node${t.onTheQuestionPath ? ' on' : ''}" data-open="${esc(t.id)}" title="${esc(t.title || '')}">
-      <span class="dot"></span>
-      <span class="k">${KIND_ICON[t.kind] || '•'}</span>
-      <span class="lab">${esc(t.daysAgo == null ? 'contact' : t.daysAgo === 0 ? 'today' : `${t.daysAgo}d`)}</span>
-    </div>`).join('');
-  return `
-    <div class="timeline">
-      <div class="rail"></div>
-      <div class="tt-track">${nodes}</div>
-      <div class="tt-more">oldest → newest · ${timeline.filter((t) => t.onTheQuestionPath).length} of these were used to answer</div>
+    <div class="chip-row">
+      ${(a.entityTrail || []).slice(0, 4).map((t) => `<span class="chip chip-static chip-entity">${esc(t)}</span>`).join("")}
+      ${(a.followUps || []).map((f, i) => `<button class="chip chip-strong" data-follow="${i}" type="button">${esc(f)}</button>`).join("")}
     </div>`;
+  bindFollowUps(body);
 }
 
-function toggleExplain(data) {
-  const slot = $('#explain-slot');
-  if (!slot) return;
-  if (slot.innerHTML) { slot.innerHTML = ''; return; }
-  const { understanding, answer, meta } = data;
-  const perToken = answer.confidence.perToken || [];
-  const tokens = perToken.map((t) => {
-    const cls = t.credit >= 1 ? '' : t.credit > 0 ? 'part' : 'miss';
-    const label = t.credit >= 1 ? t.token : t.credit > 0 ? `${t.token}~` : t.token;
-    return `<i class="${cls}" title="${t.credit >= 1 ? 'exact match' : t.credit > 0 ? 'related wording' : 'not found in the best item'}">${esc(label)}</i>`;
-  }).join('');
-
-  slot.innerHTML = `
-    <details class="trace" open>
-      <summary>How this was answered <span style="color:var(--ink-3);font-size:11px">${meta.tookMs} ms · ${meta.dimensions} dimensions</span></summary>
-      <div class="rows">
-        <div class="row"><span class="k">Question kind</span><span class="v">${esc(understanding.intent)} · ${understanding.tokens.length} search terms${understanding.kinds.length ? ` · filtered to ${understanding.kinds.join(', ')}` : ''}</span></div>
-        <div class="row"><span class="k">Terms</span><span class="v"><span class="tok">${tokens}</span></span></div>
-        <div class="row"><span class="k">Also searched</span><span class="v"><span class="tok">${(understanding.expanded || []).slice(0, 10).map((t) => `<i class="part">${esc(t)}</i>`).join('') || '—'}</span></span></div>
-        ${understanding.entities.length ? `<div class="row"><span class="k">Pinned</span><span class="v">${understanding.entities.map((e) => esc(e.text)).join(', ')}</span></div>` : ''}
-        <div class="row"><span class="k">Pipeline</span><span class="v">
-          <span class="steps">
-            <span><b>${meta.indexed}</b> items</span>
-            <span><b>${meta.vocabulary}</b> terms</span>
-            <span>BM25 <b>${(answer.confidence.signals.textMatch * 100).toFixed(0)}%</b></span>
-            <span>LSA <b>${(answer.confidence.signals.senseMatch * 100).toFixed(0)}%</b></span>
-            <span>fused <b>${(answer.confidence.signals.match * 100).toFixed(0)}%</b></span>
-          </span>
-        </span></div>
-        <div class="row"><span class="k">Confidence</span><span class="v">${esc(answer.confidence.label)} — ${(answer.confidence.score * 100).toFixed(0)}% (match ${answer.confidence.signals.match}, coverage ${answer.confidence.signals.coverage}, margin ${answer.confidence.signals.margin}, source trust ${answer.confidence.signals.trust})</span></div>
-      </div>
-    </details>`;
-}
-
-// ── drawer: one item in full ─────────────────────────────────────────────────
-
-async function openItem(id) {
-  const drawer = $('#drawer');
-  drawer.hidden = false;
-  $('#drawer-body').innerHTML = `<button class="btn ghost close" data-close>Close</button>
-    <div class="skeleton-line" style="width:60%;height:18px"></div>
-    <div class="skeleton-line" style="width:40%;margin-top:10px"></div>`;
-  const item = await api(`/api/item/${encodeURIComponent(id)}`);
-  const d = $('#drawer-body');
-
-  const visual = item.view
-    ? `<div class="frame shot"><iframe src="/view/${encodeURIComponent(item.id)}" title="${esc(item.title)}" loading="lazy"></iframe></div>
-       <p class="frame-note">This is the captured screen, re-rendered from what the phone stored — <a href="/view/${encodeURIComponent(item.id)}" target="_blank" rel="noopener">open it full size</a>.</p>`
-    : item.image
-      ? `<div class="frame"><img src="${esc(item.image)}" alt="${esc(item.title)}" loading="lazy"></div>`
-      : '';
-
-  const pipe = item.extraction.map((p) => `
-    <div class="prow">
-      <span class="name">${esc(p.pipeline)}</span>
-      <span class="bar"><i style="width:${Math.round((p.confidence || 0) * 100)}%"></i></span>
-      <span class="num">${Math.round((p.confidence || 0) * 100)}%</span>
-    </div>
-    <div class="triggered" style="margin:-2px 0 6px 0">${esc(p.detail)}</div>`).join('');
-
-  d.innerHTML = `
-    <button class="btn ghost close" data-close>Close</button>
-    <h3>${esc(item.title || item.summary || item.id)}</h3>
-    <div class="dmeta">${KIND_ICON[item.kind] || '•'} ${esc(item.kind)} · ${esc(item.source)}${item.app ? ` · ${esc(item.app)}` : ''} · captured ${esc(item.daysAgo == null ? 'no date (a record, not a capture)' : `${item.daysAgo} days ago`)}</div>
-
-    ${visual}
-
-    ${item.summary ? `<section><h4>What it is</h4><div class="text">${esc(item.summary)}</div></section>` : ''}
-
-    <section>
-      <h4>What the phone extracted</h4>
-      <div class="text">${esc(item.body || '—')}</div>
-    </section>
-
-    <section>
-      <h4>Extraction confidence</h4>
-      <div class="pipe">${pipe}</div>
-    </section>
-
-    <section>
-      <h4>Why it was findable</h4>
-      <div class="rel">
-        ${(item.tags || []).map((t) => `<button data-q="${esc(t)}">#${esc(t)}</button>`).join('')}
-      </div>
-    </section>
-
-    <section>
-      <h4>Connected items</h4>
-      <div class="rel">
-        ${(item.related || []).map((r) => `<button data-open="${esc(r.id)}">${KIND_ICON[r.kind] || '•'} ${esc(r.title)}</button>`).join('') || '<span class="triggered">Nothing shares a tag with this yet.</span>'}
-      </div>
-    </section>
-
-    <section>
-      <h4>Actions</h4>
-      <div class="rel">
-        <a class="btn" href="${esc(item.openTarget.href)}" target="_blank" rel="noopener">${esc(item.openTarget.label)}</a>
-        ${item.url ? `<a class="btn" href="https://${esc(item.url)}" target="_blank" rel="noopener">Visit ${esc(item.url.split('/')[0])}</a>` : ''}
-        <button class="btn" data-ask="What else do I have about ${esc((item.tags || [item.kind])[0])}?">Ask about this</button>
-      </div>
-    </section>`;
-}
-
-// ── right hand panels ────────────────────────────────────────────────────────
-
-function renderStats(meta) {
-  if (meta) state.stats = { ...(state.stats || {}), ...meta };
-  const s = state.stats || {};
-  const items = s.indexed ?? state.library.length;
-  $('#stats').innerHTML = `
-    <div class="stat"><b>${items ?? '—'}</b><span>items indexed</span></div>
-    <div class="stat"><b>${s.dimensions ?? '—'}</b><span>meaning dims</span></div>
-    <div class="stat"><b>${s.vocabulary ?? '—'}</b><span>terms</span></div>
-    <div class="stat"><b>${s.tookMs != null ? `${s.tookMs}` : '—'}</b><span>ms / query</span></div>`;
-}
-
-async function loadLibrary() {
-  const data = await api('/api/library');
-  state.library = data.items;
-  state.stats = { ...(state.stats || {}), indexed: data.stats.indexed, dimensions: data.stats.dimensions, vocabulary: data.stats.vocabulary };
-  renderStats();
-  renderLibraryFilters();
-  renderLibrary();
-}
-
-function renderLibraryFilters() {
-  const sources = [...new Set(state.library.map((i) => i.source))];
-  $('#library-filters').innerHTML = `<button data-src="" class="${state.kindFilter ? '' : 'on'}">all ${state.library.length}</button>` +
-    sources.map((s) => {
-      const count = state.library.filter((i) => i.source === s).length;
-      return `<button data-src="${esc(s)}" class="${state.kindFilter === s ? 'on' : ''}">${esc(s)} ${count}</button>`;
-    }).join('');
-}
-
-function renderLibrary() {
-  const items = state.kindFilter ? state.library.filter((i) => i.source === state.kindFilter) : state.library;
-  $('#library').innerHTML = items.map((i) => {
-    const thumb = i.image
-      ? `<img src="${esc(i.image)}" alt="" loading="lazy">`
-      : i.view
-        ? `<div class="shot-frame"><iframe src="/view/${esc(i.id)}" loading="lazy" scrolling="no" tabindex="-1" aria-hidden="true"></iframe></div><span class="view-badge">captured screen</span>`
-        : `<div class="glyph">${KIND_ICON[i.kind] || '•'}</div>`;
-    return `
-      <button class="lib-card" data-open="${esc(i.id)}">
-        <div class="thumb${i.image ? ' photo' : ''}">${thumb}</div>
-        <div class="body">
-          <b>${esc(i.title || i.id)}</b>
-          <p>${esc(i.summary || '')}</p>
-          <div class="tags">
-            <span class="tag src">${esc(i.source)}</span>
-            <span class="tag">${i.daysAgo == null ? 'record' : i.daysAgo === 0 ? 'today' : `${i.daysAgo}d ago`}</span>
-            ${i.addedBy === 'simulator' ? '<span class="tag added">just added</span>' : ''}
-          </div>
-        </div>
-      </button>`;
-  }).join('');
-}
-
-function renderPipeline() {
-  const stats = state.stats || {};
-  $('#pipeline').innerHTML = `
-    <div class="pipeline-steps">
-      <div class="pstep"><span class="n">1</span><div><b>Capture &amp; extract — on the phone</b>
-        <p>Screenshots are OCR'd. Photos get an on-device caption plus OCR of any text in frame. Pages keep their reader text.
-           Voice memos are transcribed locally, mail and notes are already text. Nothing in this step touches the network.</p></div></div>
-      <div class="pstep"><span class="n">2</span><div><b>Build a text index</b>
-        <p>Every item becomes a bag of weighted terms — title, tags, people, body and metadata — with a synonym graph
-           (<code>cheap</code> ↔ <code>cheapest</code> ↔ <code>deal</code> ↔ <code>fare</code>). Right now:
-           <b>${stats.vocabulary ?? '—'}</b> terms across <b>${stats.indexed ?? '—'}</b> items.</p></div></div>
-      <div class="pstep"><span class="n">3</span><div><b>Rank with two rankers at once</b>
-        <p>BM25 for what the words literally say, and LSA — a truncated SVD over the term–document matrix
-           (<b>${stats.dimensions ?? '—'}</b> dimensions) — for what the item is <em>about</em>. The two are fused, so a
-           screenshot that never says "website" still answers a question about one.</p></div></div>
-      <div class="pstep"><span class="n">4</span><div><b>Filter by kind, source, person, time</b>
-        <p>"Screenshots from last month", "what Thabo sent" and "how much" are handled as gates and priors before ranking,
-           not as words in the query.</p></div></div>
-      <div class="pstep"><span class="n">5</span><div><b>Answer, with its evidence attached</b>
-        <p>The reply is assembled only from what was retrieved: the figure comes off the matched item, corroboration is
-           counted across sources, and a confidence score is computed from match strength, word coverage, the margin over
-           the runner-up and how clean the extraction was. Weak matches say so.</p></div></div>
-    </div>
-    <h4>What it deliberately does not do</h4>
-    <ul>
-      <li>No generative text about your life — every value in the answer is quoted from an item you can open.</li>
-      <li>No silent guessing: when nothing clears the floor, it says nothing matched, or hedges and explains why.</li>
-      <li>No cloud round-trip. The whole pipeline above is the same shape an on-device implementation uses.</li>
-    </ul>`;
-}
-
-function renderPrivacy() {
-  $('#privacy').innerHTML = `
-    <p>Every claim this page makes should be checkable in the code, so here is the honest version.</p>
-    <h4>What is real here</h4>
-    <ul>
-      <li>The library is a fixed demo dataset, but the <b>retrieval is genuine</b>: BM25 over a weighted term index, fused with
-        a truncated-SVD semantic space, with kind/source/person/time gates and a confidence model. No hardcoded answers —
-        ask it something the library cannot support and it will say so.</li>
-      <li>The extraction stories are the real shape of an on-device pipeline: OCR for screens, captions for photos,
-        speech-to-text for memos, plus per-item extraction confidence that feeds back into ranking.</li>
-      <li>Zero dependencies, zero network calls at runtime, no CDN, no fonts, no telemetry. Open the network tab: nothing leaves.</li>
-    </ul>
-    <h4>What would be different on a real phone</h4>
-    <ul>
-      <li>OCR, captioning and transcription run on-device (Vision / ML Kit / Whisper-style local models) instead of being
-        pre-baked into the demo library.</li>
-      <li>The index lives in a local database next to the items, rebuilt incrementally as the phone captures more.</li>
-      <li>Permission and retention are per-source, and revoking "Photos" removes those rows from the index, not just from the UI.</li>
-    </ul>
-    <h4>Things a page like this normally hides</h4>
-    <ul>
-      <li>Speech-to-text for accents and noisy rooms is the weak link — a garbled transcript is invisible to the user later.</li>
-      <li>Semantic search fails quietly: a confident-sounding answer that came from the wrong screenshot is the failure mode
-        worth designing against, which is why coverage and margin are shown, not just a score.</li>
-      <li>"Six months ago" means the index has to survive OS-level storage pressure and app reinstall. Anything cached and
-        unrecoverable is not memory.</li>
-    </ul>`;
-}
-
-async function loadEvents() {
-  const data = await api('/api/simulator');
-  state.events = data.events;
-  renderEvents();
-}
-
-function renderEvents() {
-  $('#events').innerHTML = state.events.map((e) => {
-    const done = state.advanced.has(e.id);
-    return `
-      <div class="event${done ? ' done' : ''}">
-        <div class="appline"><span class="ico">${e.icon}</span> ${esc(e.app)} ${done ? '· indexed' : '· waiting'}</div>
-        <b>${esc(e.label)}</b>
-        <p>${esc(e.blurb)}</p>
-        <div class="proves">Proves: <em>${esc(e.proves)}</em></div>
-        <div class="row">
-          <button class="btn ${done ? '' : 'primary'} tiny" data-advance="${esc(e.id)}" ${done ? 'disabled style="opacity:.5"' : ''}>${done ? 'Indexed' : 'Advance'}</button>
-          <button class="btn tiny" data-q="${esc(e.proves)}">Ask it</button>
-        </div>
-      </div>`;
-  }).join('');
-}
-
-async function advanceEvent(id) {
-  const before = state.stats?.indexed ?? state.library.length;
-  let res;
-  try {
-    res = await api('/api/simulator/advance', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ id })
+function bindFollowUps(scope) {
+  scope.querySelectorAll("[data-follow]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const text = btn.textContent.trim();
+      $("#query").value = text;
+      runSearch(text);
     });
-  } catch (error) {
-    if (String(error.message).startsWith('409')) {
-      state.advanced.add(id);
-      renderEvents();
-      toast('That one is already on the phone — reset the library to replay it.');
-    } else {
-      toast(`Could not advance: ${esc(error.message)}`);
+  });
+}
+
+function renderResults(data) {
+  const body = $("#resultsBody");
+  const results = data.results;
+  $("#resultsBadge").textContent = `${results.length} of ${data.timings.indexed} · ${data.timings.retrieve}ms`;
+  if (!results.length) {
+    body.innerHTML = `<div class="empty-state"><p class="muted">Nothing matched. ${esc(data.filterNote || "")}</p></div>`;
+    return;
+  }
+  const list = el("div", "result-list");
+  for (const r of results) {
+    const card = el("article", "result");
+    const bars = ["semantic", "keyword", "coverage", "entity", "phrase"]
+      .map((key) => {
+        const v = Math.max(0.06, Math.min(1, Number(r.breakdown[key]) || 0));
+        return `<i style="height:${Math.round(v * 12)}px" title="${key}: ${r.breakdown[key]}"></i>`;
+      })
+      .join("");
+    const chips = [
+      ...(r.reasons || []).map((x) => `<span class="result-chip evidence">${esc(x)}</span>`),
+      ...(r.entities || []).slice(0, 3).map((e) => `<span class="result-chip">${esc(e.type)}: ${esc(e.label)}</span>`),
+    ].join("");
+    card.innerHTML = `
+      <div class="result-thumb">
+        ${r.fileUrl ? `<img src="${r.fileUrl}" alt="" loading="lazy" />` : `<span class="glyph">${KIND_GLYPH[r.kind] || "✎"}</span>`}
+      </div>
+      <div class="result-main">
+        <div class="result-top">
+          <span class="result-title">${esc(r.title)}</span>
+          <span class="result-score">${(r.score * 100).toFixed(0)}% match</span>
+        </div>
+        <div class="result-meta">
+          <span class="badge badge-soft">${esc(r.source)}</span>
+          <span>${esc(r.kind)}</span>
+          <span>·</span>
+          <span>${esc(absoluteDate(r.capturedAt))} (${esc(relativeDate(r.capturedAt))})</span>
+          ${r.location ? `<span>·</span><span>${esc(r.location)}</span>` : ""}
+          ${r.textSource === "ocr" ? `<span>·</span><span title="Text read from the image">OCR ${r.ocr?.confidence ?? "–"}%</span>` : ""}
+        </div>
+        <div class="result-snippet">${highlightSnippet(r.snippet)}</div>
+        <div class="result-chips">${chips}</div>
+      </div>
+      <div class="result-bars">${bars}</div>`;
+    card.addEventListener("click", () => openDrawer(r.id, r.reasons || []));
+    list.appendChild(card);
+  }
+  body.innerHTML = "";
+  body.appendChild(list);
+  const note = data.filterNote ? `<p class="muted small">${esc(data.filterNote)}</p>` : "";
+  if (note) body.insertAdjacentHTML("beforeend", note);
+}
+
+function renderConnections(data) {
+  const body = $("#connectionsBody");
+  const edges = data.connections || [];
+  $("#connectionsBadge").textContent = edges.length ? `${edges.length} links` : "no links yet";
+  if (!edges.length) {
+    body.innerHTML = `<p class="muted">No shared phone numbers, names or sites across these memories yet.</p>`;
+    return;
+  }
+  body.innerHTML = edges
+    .slice(0, 5)
+    .map(
+      (e) => `
+      <div class="edge">
+        <div class="edge-label">🔗 ${esc(e.label)}</div>
+        <div class="edge-flow">
+          <div class="edge-node"><b>${esc(e.from.title)}</b><span>${esc(e.from.source)} · ${esc(absoluteDate(e.from.capturedAt))}</span></div>
+          <div class="edge-arrow">→</div>
+          <div class="edge-node"><b>${esc(e.to.title)}</b><span>${esc(e.to.source)} · ${esc(absoluteDate(e.to.capturedAt))}</span></div>
+        </div>
+      </div>`
+    )
+    .join("");
+}
+
+function renderTimeline(data) {
+  const body = $("#timelineBody");
+  const items = data.timeline || [];
+  $("#timelineBadge").textContent = items.length ? `${items.length} points` : "timeline";
+  if (!items.length) {
+    body.innerHTML = `<p class="muted">Matches in the order your phone lived through them.</p>`;
+    return;
+  }
+  body.innerHTML = `<div class="timeline">${items
+    .map(
+      (t) => `
+      <div class="timeline-item">
+        <div class="timeline-date">${esc(absoluteDate(t.capturedAt))}</div>
+        <div class="timeline-rail"><span class="timeline-dot"></span></div>
+        <div class="timeline-body">
+          <b>${esc(t.title)}</b>
+          <span>${esc(t.source)} · ${esc(t.kind)}${t.location ? " · " + esc(t.location) : ""}</span>
+        </div>
+      </div>`
+    )
+    .join("")}</div>`;
+  body.querySelectorAll(".timeline-item").forEach((node, i) => {
+    node.style.cursor = "pointer";
+    node.addEventListener("click", () => openDrawer(items[i].docId));
+  });
+}
+
+/* ----------------------------------------------------------------- drawer --- */
+
+async function openDrawer(docId, reasons = []) {
+  let doc = state.documents.find((d) => d.id === docId);
+  try {
+    const fresh = await api(`/api/documents/${docId}`);
+    doc = fresh.document;
+  } catch {
+    /* fall back to the cached card */
+  }
+  if (!doc) return;
+  state.drawer.doc = doc;
+  state.drawer.tab = doc.fileUrl ? "image" : "text";
+  $("#drawerTitle").textContent = doc.title;
+  $("#drawerMeta").textContent = `${doc.source} · ${doc.kind} · ${absoluteDate(doc.capturedAt)}`;
+  $("#scrim").hidden = false;
+  $("#drawer").hidden = false;
+  document.querySelectorAll("#drawer .tab").forEach((t) => t.classList.toggle("is-active", t.getAttribute("data-tab") === state.drawer.tab));
+  renderDrawer(reasons);
+}
+
+function closeDrawer() {
+  $("#drawer").hidden = true;
+  $("#scrim").hidden = true;
+}
+
+async function renderDrawer(reasons = []) {
+  const doc = state.drawer.doc;
+  if (!doc) return;
+  const body = $("#drawerBody");
+  const tab = state.drawer.tab;
+  const terms = (state.last?.routed?.terms || []).filter((t) => t.length > 2);
+
+  if (tab === "image") {
+    if (!doc.fileUrl) {
+      body.innerHTML = `<p class="muted">This memory is text — it was typed or saved, not read from an image.</p>`;
+      return;
     }
+    body.innerHTML = `
+      <div class="viewer-tools">
+        <label class="chip chip-static"><input type="checkbox" id="boxToggle" ${state.drawer.boxes ? "checked" : ""} /> show OCR boxes</label>
+        <span>${doc.ocrLines?.length || 0} text lines read from this image${doc.ocr ? ` · OCR confidence ${doc.ocr.confidence}% · ${doc.ocr.ms} ms` : ""}</span>
+      </div>
+      <div class="viewer"><div class="viewer-frame">
+        <img id="viewerImg" src="${doc.fileUrl}" alt="${esc(doc.title)}" />
+        <div id="ocrLayer" style="position:absolute;inset:0"></div>
+      </div></div>
+      <div class="text-block" style="max-height:26vh">${esc(doc.body || "")}</div>`;
+    const img = $("#viewerImg");
+    const draw = () => {
+      const layer = $("#ocrLayer");
+      if (!layer) return;
+      const natW = img.naturalWidth || 1;
+      const natH = img.naturalHeight || 1;
+      const show = $("#boxToggle")?.checked;
+      layer.innerHTML = show
+        ? (doc.ocrLines || [])
+            .filter((l) => l.b)
+            .map(
+              (l) =>
+                `<span class="ocr-box" title="${esc(l.t)} (${l.c}%)" style="left:${(l.b[0] / natW) * 100}%;top:${(l.b[1] / natH) * 100}%;width:${((l.b[2] - l.b[0]) / natW) * 100}%;height:${((l.b[3] - l.b[1]) / natH) * 100}%"></span>`
+            )
+            .join("")
+        : "";
+    };
+    if (img.complete) draw();
+    else img.addEventListener("load", draw);
+    $("#boxToggle")?.addEventListener("change", (e) => {
+      state.drawer.boxes = e.target.checked;
+      draw();
+    });
     return;
   }
-  state.advanced.add(id);
-  await loadLibrary();
-  renderEvents();
-  toast(`<b>+1 item</b> from ${esc(res.event.app)} — index went from ${before} to ${res.indexed}. `
-    + `<br>“${esc(res.proves)}” now answers: <b>${esc(res.proof.headline)}</b> (${esc(res.proof.confidence.label)})`);
-  if (state.lastQuestion && state.lastQuestion.toLowerCase() === res.proves.toLowerCase()) {
-    await runQuestion(state.lastQuestion);
+
+  if (tab === "text") {
+    body.innerHTML = `
+      <span class="section-title">${doc.textSource === "ocr" ? "Read from the image with OCR" : "Text saved with this memory"}</span>
+      <div class="text-block" id="docText">${esc(doc.body || "(no text)")}</div>
+      <div class="chip-row">${(doc.keywords || []).map((k) => `<span class="chip chip-static">${esc(k)}</span>`).join("")}</div>`;
+    if (terms.length) highlightTerms($("#docText"), terms);
+    return;
+  }
+
+  if (tab === "analysis") {
+    const b = state.last?.results?.find((r) => r.id === doc.id)?.breakdown || null;
+    const bars = b
+      ? Object.entries(b)
+          .map(
+            ([k, v]) => `
+        <div class="bar-row">
+          <span>${esc(k)}</span>
+          <span class="bar-track"><i style="width:${Math.min(100, Math.round((Number(v) || 0) * 100))}%"></i></span>
+          <span class="bar-val">${esc(String(v))}</span>
+        </div>`
+          )
+          .join("")
+      : `<p class="muted small">Run a search first to see how this memory scored on that question.</p>`;
+
+    const emb = doc.embeddingPreview || [];
+    body.innerHTML = `
+      <span class="section-title">Details</span>
+      <dl class="kv">
+        <dt>Kind</dt><dd>${esc(doc.kind)} · ${esc(doc.source)}</dd>
+        <dt>Captured</dt><dd>${esc(absoluteDate(doc.capturedAt))} (${esc(relativeDate(doc.capturedAt))})</dd>
+        ${doc.location ? `<dt>Location</dt><dd>${esc(doc.location)}</dd>` : ""}
+        ${doc.url ? `<dt>Source url</dt><dd class="mono">${esc(doc.url)}</dd>` : ""}
+        <dt>Text origin</dt><dd>${doc.textSource === "ocr" ? `OCR (${doc.ocr?.confidence ?? "–"}% confidence, ${doc.ocr?.ms ?? "–"} ms, ${doc.ocrLines?.length || 0} lines)` : "typed / pasted"}</dd>
+        <dt>Indexed</dt><dd>${esc(relativeDate(doc.ingestedAt))}</dd>
+        <dt>Embedding</dt><dd class="mono">384-d MiniLM · [${emb.slice(0, 6).map((v) => v.toFixed(2)).join(", ")}, …]</dd>
+      </dl>
+      ${reasons.length ? `<span class="section-title">Why it matched</span><div class="chip-row">${reasons.map((r) => `<span class="chip chip-strong chip-static">${esc(r)}</span>`).join("")}</div>` : ""}
+      <span class="section-title">Score breakdown</span>
+      <div class="bars">${bars}</div>
+      <span class="section-title">Details the app connected</span>
+      <div class="chip-row">${(doc.entities || []).map((e) => `<span class="chip chip-static chip-entity">${esc(e.type)}: ${esc(e.label)}</span>`).join("") || '<span class="muted small">none found</span>'}</div>`;
+    return;
+  }
+
+  // related
+  body.innerHTML = `<p class="muted small">Loading connections…</p>`;
+  try {
+    const { edges } = await api(`/api/documents/${doc.id}/related`);
+    body.innerHTML = edges.length
+      ? edges
+          .map(
+            (e) => `
+        <div class="edge">
+          <div class="edge-label">🔗 ${esc(e.label)}</div>
+          <div class="edge-flow">
+            <div class="edge-node"><b>${esc(e.from.title)}</b><span>${esc(e.from.source)} · ${esc(absoluteDate(e.from.capturedAt))}</span></div>
+            <div class="edge-arrow">→</div>
+            <div class="edge-node"><b>${esc(e.to.title)}</b><span>${esc(e.to.source)} · ${esc(absoluteDate(e.to.capturedAt))}</span></div>
+          </div>
+        </div>`
+          )
+          .join("")
+      : `<p class="muted">This memory does not share a phone number, name or site with anything else yet.</p>`;
+    edges.forEach((edge, i) => {
+      const node = body.querySelectorAll(".edge")[i];
+      if (!node) return;
+      node.style.cursor = "pointer";
+      node.addEventListener("click", () => {
+        const otherId = edge.from.docId === doc.id ? edge.to.docId : edge.from.docId;
+        if (otherId && otherId !== doc.id) openDrawer(otherId);
+      });
+    });
+  } catch (err) {
+    body.innerHTML = `<p class="muted">Could not load connections: ${esc(err.message)}</p>`;
   }
 }
 
-async function resetLibrary() {
-  await api('/api/simulator/reset', { method: 'POST' });
-  state.advanced.clear();
-  await loadLibrary();
-  renderEvents();
-  $('#phone-body').innerHTML = '';
-  renderEmpty();
-  state.data = null;
-  toast('Library reset to the original capture set.');
+function highlightTerms(node, terms) {
+  const html = node.innerHTML;
+  let out = html;
+  for (const term of terms.slice(0, 8)) {
+    const re = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
+    out = out.replace(re, "<mark>$1</mark>");
+  }
+  node.innerHTML = out;
 }
 
-function toast(html, ms = 6500) {
-  const el = $('#toast');
-  el.innerHTML = html;
-  el.hidden = false;
-  clearTimeout(toast._t);
-  toast._t = setTimeout(() => { el.hidden = true; }, ms);
+/* ----------------------------------------------------------------- import --- */
+
+function openImport() {
+  $("#importDrawer").hidden = false;
+  $("#scrim").hidden = false;
 }
 
-// ── wiring ───────────────────────────────────────────────────────────────────
+function closeImport() {
+  $("#importDrawer").hidden = true;
+  $("#scrim").hidden = true;
+}
 
-document.addEventListener('click', async (event) => {
-  const chip = event.target.closest('[data-q]');
-  if (chip) {
-    event.preventDefault();
-    runQuestion(chip.dataset.q);
+function progressRow(name) {
+  const row = el("div", "progress-row");
+  row.innerHTML = `<b>${esc(name)}</b><span class="status">queued</span>`;
+  $("#uploadProgress").appendChild(row);
+  return row;
+}
+
+async function uploadFiles(files) {
+  const list = [...files].filter((f) => f.type.startsWith("image/"));
+  if (!list.length) return;
+  const form = new FormData();
+  for (const f of list) form.append("files", f, f.name);
+  form.append("source", $("#uploadSource").value || "Camera");
+  form.append("location", $("#uploadLocation").value || "");
+  const rows = new Map();
+  for (const f of list) {
+    const row = progressRow(f.name);
+    row.querySelector(".status").textContent = "reading with OCR…";
+    rows.set(f.name, row);
+  }
+  try {
+    const res = await api("/api/import/images", { method: "POST", body: form });
+    for (const item of res.items || []) {
+      const row = rows.get(item.name);
+      if (!row) continue;
+      if (item.status === "created") {
+        row.className = "progress-row is-ok";
+        row.querySelector(".status").textContent = `indexed · OCR ${item.ocr?.confidence ?? "?"}% · ${(item.keywords || []).slice(0, 2).join(", ")}`;
+      } else if (item.status === "skipped") {
+        row.className = "progress-row is-ok";
+        row.querySelector(".status").textContent = "already remembered";
+      } else {
+        row.className = "progress-row is-err";
+        row.querySelector(".status").textContent = item.error || "could not read";
+      }
+    }
+    $("#importStatus").textContent = `${res.counts.created} image(s) indexed, ${res.counts.skipped} already known, ${res.counts.errors} failed.`;
+    await refreshStats();
+    await loadGallery();
+    await loadSuggestions();
+  } catch (err) {
+    rows.forEach((row) => {
+      row.className = "progress-row is-err";
+      row.querySelector(".status").textContent = err.message;
+    });
+  }
+}
+
+async function saveNote() {
+  const body = $("#noteBody").value.trim();
+  if (!body) {
+    $("#importStatus").textContent = "Type or paste something to index first.";
     return;
   }
-  const open = event.target.closest('[data-open]');
-  if (open) {
-    event.preventDefault();
-    openItem(open.dataset.open);
-    return;
+  $("#importStatus").textContent = "embedding on-device…";
+  try {
+    const res = await api("/api/import/text", {
+      method: "POST",
+      body: JSON.stringify({
+        title: $("#noteTitle").value || undefined,
+        body,
+        kind: $("#noteKind").value,
+        source: $("#noteSource").value || "Notes",
+        location: "",
+      }),
+    });
+    $("#importStatus").textContent = res.skipped ? "That memory was already in the index." : `Indexed “${res.document.title}” — ${res.document.keywords.slice(0, 4).join(", ")}`;
+    $("#noteBody").value = "";
+    $("#noteTitle").value = "";
+    await refreshStats();
+    await loadGallery();
+    if (state.query) runSearch(state.query);
+  } catch (err) {
+    $("#importStatus").textContent = `Failed: ${err.message}`;
   }
-  if (event.target.closest('[data-close]')) {
-    $('#drawer').hidden = true;
-    return;
+}
+
+async function rebuildIndex() {
+  if (!confirm("Clear the index and re-run OCR over the sample phone data? Imported items will be removed.")) return;
+  $("#importStatus").textContent = "clearing index…";
+  await api("/api/reset", { method: "POST" });
+  await api("/api/seed", { method: "POST", body: JSON.stringify({ force: false }) });
+  $("#importStatus").textContent = "re-indexing with OCR…";
+  await waitForSeed();
+  $("#importStatus").textContent = "Index rebuilt.";
+  await loadGallery();
+  await refreshStats();
+}
+
+async function waitForSeed() {
+  for (;;) {
+    const s = await api("/api/seed/status");
+    $("#importStatus").textContent = `indexing ${s.done}/${s.total} — ${s.label || s.stage}`;
+    if (!s.running) return s;
+    await new Promise((r) => setTimeout(r, 700));
   }
-  const src = event.target.closest('[data-src]');
-  if (src) {
-    state.kindFilter = src.dataset.src || null;
-    renderLibraryFilters();
-    renderLibrary();
-    return;
+}
+
+/* ------------------------------------------------------------------- init --- */
+
+function bindEvents() {
+  $("#searchForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    runSearch($("#query").value);
+  });
+
+  $("#kindFilter").addEventListener("click", (e) => {
+    const btn = e.target.closest(".seg");
+    if (!btn) return;
+    document.querySelectorAll("#kindFilter .seg").forEach((b) => b.classList.toggle("is-active", b === btn));
+    state.kind = btn.getAttribute("data-kind") || "";
+    if (state.query) runSearch(state.query);
+  });
+
+  $("#drawerClose").addEventListener("click", closeDrawer);
+  $("#importClose").addEventListener("click", closeImport);
+  $("#scrim").addEventListener("click", () => {
+    closeDrawer();
+    closeImport();
+  });
+  $("#openImport").addEventListener("click", openImport);
+  $("#saveNote").addEventListener("click", saveNote);
+  $("#redoIndex").addEventListener("click", rebuildIndex);
+
+  document.querySelectorAll("#drawer .tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      state.drawer.tab = tab.getAttribute("data-tab");
+      document.querySelectorAll("#drawer .tab").forEach((t) => t.classList.toggle("is-active", t === tab));
+      renderDrawer();
+    });
+  });
+
+  const dropzone = $("#dropzone");
+  const fileInput = $("#fileInput");
+  dropzone.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", (e) => {
+    uploadFiles(e.target.files);
+    e.target.value = "";
+  });
+  for (const evt of ["dragenter", "dragover"]) {
+    dropzone.addEventListener(evt, (e) => {
+      e.preventDefault();
+      dropzone.classList.add("is-over");
+    });
   }
-  const advance = event.target.closest('[data-advance]');
-  if (advance) {
-    advance.disabled = true;
-    await advanceEvent(advance.dataset.advance);
-    return;
+  for (const evt of ["dragleave", "drop"]) {
+    dropzone.addEventListener(evt, (e) => {
+      e.preventDefault();
+      dropzone.classList.remove("is-over");
+    });
   }
-  const askBack = event.target.closest('[data-ask]');
-  if (askBack) {
-    $('#drawer').hidden = true;
-    runQuestion(askBack.dataset.ask);
+  dropzone.addEventListener("drop", (e) => {
+    if (e.dataTransfer?.files?.length) uploadFiles(e.dataTransfer.files);
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      closeDrawer();
+      closeImport();
+    }
+    if (e.key === "/" && document.activeElement !== $("#query") && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) {
+      e.preventDefault();
+      $("#query").focus();
+    }
+  });
+}
+
+async function init() {
+  bindEvents();
+  await refreshStatus();
+  if (!state.stats || state.stats.total === 0) {
+    const health = await api("/api/health");
+    if (health.seed.running) {
+      $("#indexLabel").textContent = `indexing 0/${health.seed.total}`;
+      await waitForSeedSilent();
+    }
   }
-});
-
-document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') $('#drawer').hidden = true;
-  if (event.key === '/' && document.activeElement !== $('#ask-input')) {
-    event.preventDefault();
-    $('#ask-input').focus();
+  await loadSuggestions();
+  await loadGallery();
+  await refreshStats();
+  const params = new URLSearchParams(location.search);
+  const q = params.get("q");
+  if (q) {
+    $("#query").value = q;
+    runSearch(q);
   }
-});
+}
 
-$('#ask-form').addEventListener('submit', (event) => {
-  event.preventDefault();
-  runQuestion($('#ask-input').value);
-});
+async function waitForSeedSilent() {
+  for (;;) {
+    try {
+      const s = await api("/api/seed/status");
+      $("#indexLabel").textContent = `indexing ${s.done}/${s.total}`;
+      $("#indexDot").className = "dot dot-live";
+      if (!s.running) break;
+    } catch {
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 800));
+  }
+  await refreshStatus();
+}
 
-$$('.tab').forEach((tab) => tab.addEventListener('click', () => {
-  $$('.tab').forEach((t) => t.classList.toggle('is-active', t === tab));
-  $$('.panel').forEach((p) => p.classList.toggle('is-active', p.id === `panel-${tab.dataset.panel}`));
-}));
-
-$('#reset-btn').addEventListener('click', resetLibrary);
-
-// ── boot ─────────────────────────────────────────────────────────────────────
-
-renderChips();
-renderEmpty();
-renderPipeline();
-renderPrivacy();
-await loadLibrary();
-await loadEvents();
-renderPipeline();
-
-// Deep link: /?q=the+question
-const initial = new URLSearchParams(location.search).get('q');
-if (initial) runQuestion(initial);
+init();
