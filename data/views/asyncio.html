@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>asyncio task groups — docs</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { width: 390px; margin: 0 auto; background: #fff; color: #1c1e21; font: 13px/1.62 -apple-system, "Segoe UI", Roboto, sans-serif; padding-bottom: 26px; }
+  .bar { background: #2b3440; color: #fff; padding: 10px 14px; display: flex; gap: 10px; align-items: center; }
+  .bar .chip { margin-left: auto; background: rgba(255,255,255,.14); border-radius: 999px; padding: 3px 9px; font-size: 10.5px; }
+  .crumb { font-size: 10.5px; color: #6a7186; padding: 11px 14px 0; }
+  .wrap { padding: 8px 14px 0; }
+  h1 { font-size: 21px; margin: 8px 0 4px; letter-spacing: -.01em; }
+  .sub { color: #6a7186; font-size: 11.5px; }
+  .toc { background: #f6f8fa; border: 1px solid #e6eaf0; border-radius: 9px; padding: 10px 12px; margin: 14px 0; font-size: 12px; }
+  .toc b { display: block; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: #7b8291; margin-bottom: 6px; }
+  .toc a { display: block; color: #2b6cb0; text-decoration: none; padding: 2px 0; }
+  h2 { font-size: 15.5px; margin: 22px 0 8px; padding-bottom: 5px; border-bottom: 1px solid #e6eaf0; }
+  p { margin: 0 0 11px; }
+  code { background: #f2f4f7; border: 1px solid #e6eaf0; border-radius: 4px; padding: .5px 4px; font: 11.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  pre { background: #23262e; color: #e8ecf1; border-radius: 9px; padding: 12px 13px; overflow: auto; font: 11.5px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace; margin: 0 0 12px; }
+  pre .k { color: #ff9d7a; } pre .s { color: #a5e3a0; } pre .c { color: #8d97a5; } pre .f { color: #93c5fd; }
+  .warn { background: #fff6e8; border: 1px solid #ffdca8; border-left: 3px solid #e39a2a; border-radius: 8px; padding: 10px 12px; font-size: 12px; margin: 0 0 13px; }
+  .warn b { color: #8a5a06; }
+  ul { padding-left: 18px; margin: 0 0 12px; }
+  li { margin-bottom: 5px; }
+  .version { margin-top: 22px; border-top: 1px solid #e6eaf0; padding-top: 10px; font-size: 10.5px; color: #8b919e; }
+</style>
+</head>
+<body>
+  <div class="bar"><b>docs.python.org</b><span class="chip">3.12 · en</span></div>
+  <div class="crumb">Library reference › Coroutines and tasks › Task groups</div>
+  <div class="wrap">
+    <h1>Task cancellation and task groups</h1>
+    <div class="sub">Coroutines and tasks — reference</div>
+
+    <div class="toc">
+      <b>On this page</b>
+      <a href="#">Cancelling a task</a>
+      <a href="#">Shielding from cancellation</a>
+      <a href="#">Timeouts</a>
+      <a href="#">Cancelled vs raised</a>
+    </div>
+
+    <h2>Cancelling a task</h2>
+    <p>A task can be cancelled by calling <code>Task.cancel()</code>. This arranges for a <code>CancelledError</code> to be thrown into the wrapped coroutine on the next cycle of the event loop.</p>
+    <pre><span class="k">async def</span> <span class="f">worker</span>():
+    <span class="k">try</span>:
+        <span class="k">await</span> asyncio.sleep(<span class="s">10</span>)
+    <span class="k">finally</span>:
+        <span class="c"># always runs, including on cancellation</span>
+        <span class="k">await</span> close_connection()</pre>
+
+    <div class="warn"><b>Never swallow CancelledError.</b> Raising anything other than <code>CancelledError</code> from a task that was cancelled will be treated as a failure of the task, and cleanup that awaits inside <code>finally</code> can itself be cancelled.</div>
+
+    <h2>Shielding from cancellation</h2>
+    <p>If a coroutine must not be interrupted, wrap it in <code>asyncio.shield()</code>. The inner task keeps running when the outer await is cancelled, and the outer caller sees <code>CancelledError</code> once the shielded work is awaited again.</p>
+    <pre><span class="k">await</span> asyncio.shield(flush_writes())</pre>
+    <p>Use this sparingly. A shielded coroutine that never finishes is a shutdown that never finishes.</p>
+
+    <h2>Task groups</h2>
+    <p>A task group is an async context manager that keeps a group of tasks alive and cancels the others if any one of them raises.</p>
+    <pre><span class="k">async with</span> asyncio.TaskGroup() <span class="k">as</span> tg:
+    tg.create_task(handle(a))
+    tg.create_task(handle(b))</pre>
+    <p>If a child raises an exception other than <code>CancelledError</code>, the remaining tasks in the group are cancelled and the group re-raises an <code>ExceptionGroup</code> once all of them have finished.</p>
+
+    <h2>Cancelled vs raised</h2>
+    <ul>
+      <li><code>task.cancelled()</code> is <code>True</code> only when the task was cancelled and did not suppress it.</li>
+      <li>A task that finished by raising an exception is not cancelled — check <code>task.exception()</code>.</li>
+      <li>Calling <code>task.exception()</code> on a cancelled task raises <code>CancelledError</code>.</li>
+    </ul>
+    <div class="version">Last built for Python 3.12 · relevant to the worker shutdown path</div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,24 @@
+{
+  "name": "remembers-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Remembers \u2014 your phone, searchable by meaning. A reference implementation of on-device personal search over screenshots, photos, pages, notes, mail, voice memos and calendar.",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "on-device",
+    "semantic-search",
+    "personal-search",
+    "lsa",
+    "bm25"
+  ],
+  "license": "MIT"
+}

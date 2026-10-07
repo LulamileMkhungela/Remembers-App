@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Airbnb — Alfama studio</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { width: 390px; margin: 0 auto; background: #fff; color: #222; font: 13px/1.45 -apple-system, "Segoe UI", Roboto, sans-serif; padding-bottom: 26px; }
+  .hero { position: relative; height: 232px; overflow: hidden; }
+  .hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .hero .scrim { position: absolute; inset: auto 0 0 0; height: 90px; background: linear-gradient(transparent, rgba(0,0,0,.55)); }
+  .badge { position: absolute; left: 12px; bottom: 12px; color: #fff; font-size: 10.5px; background: rgba(0,0,0,.42); backdrop-filter: blur(6px); padding: 3px 8px; border-radius: 999px; }
+  .fav { position: absolute; right: 12px; top: 12px; width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,.92); display: grid; place-items: center; color: #ff385c; font-size: 15px; }
+  .wrap { padding: 14px 14px 0; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  .sub { color: #6b6b6b; font-size: 11.5px; }
+  .stars { color: #222; font-size: 11.5px; margin-top: 6px; }
+  .stars span { color: #6b6b6b; }
+  .rule { height: 1px; background: #ebebeb; margin: 13px 0; }
+  .feats { display: flex; flex-direction: column; gap: 8px; }
+  .feat { display: flex; gap: 9px; align-items: flex-start; }
+  .feat i { font-style: normal; font-size: 14px; width: 18px; text-align: center; }
+  .feat b { display: block; font-size: 12.5px; }
+  .feat small { color: #6b6b6b; font-size: 11px; }
+  .cancel { background: #e9f6ee; color: #14653c; border-radius: 10px; padding: 9px 11px; font-size: 11.5px; margin-top: 12px; }
+  .quote { border-left: 3px solid #ddd; padding-left: 11px; color: #444; font-size: 12px; margin-top: 12px; font-style: italic; }
+  .quote b { display: block; font-style: normal; font-size: 11px; color: #6b6b6b; margin-top: 5px; }
+  .pricebar { position: sticky; bottom: 0; background: #fff; border-top: 1px solid #ebebeb; padding: 11px 14px; display: flex; align-items: center; margin-top: 14px; }
+  .pricebar .amt { font-size: 17px; font-weight: 700; }
+  .pricebar .amt small { font-size: 11px; font-weight: 400; color: #6b6b6b; }
+  .pricebar .total { display: block; font-size: 10.5px; color: #6b6b6b; }
+  .cta { margin-left: auto; background: linear-gradient(90deg,#e61e4d,#d70466); color: #fff; border: 0; border-radius: 10px; padding: 10px 18px; font-size: 13px; font-weight: 600; }
+  .saved { display: inline-flex; align-items: center; gap: 6px; background: #fff0f3; color: #c1003c; border-radius: 999px; padding: 4px 10px; font-size: 11px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+  <div class="hero">
+    <img src="/assets/tram.jpg" alt="Alfama street">
+    <div class="scrim"></div>
+    <div class="badge">1 / 24 · Alfama, Lisbon</div>
+    <div class="fav">♥</div>
+  </div>
+  <div class="wrap">
+    <div class="saved">♥ Saved to wishlist “Lisbon”</div>
+    <h1>Sunny studio in Alfama with a balcony</h1>
+    <div class="sub">Lisbon, Portugal · 2 guests · 1 bed · 1 bath</div>
+    <div class="stars">★ 4.92 <span>· 138 reviews · Superhost</span></div>
+    <div class="rule"></div>
+    <div class="feats">
+      <div class="feat"><i>🛏</i><div><b>Entire studio</b><small>You'll have the place to yourself</small></div></div>
+      <div class="feat"><i>🚋</i><div><b>Two minutes from the Tram 28 stop</b><small>Five minutes down to the river on foot</small></div></div>
+      <div class="feat"><i>🧺</i><div><b>Self check-in</b><small>Key in the lock box, check-in after 15:00</small></div></div>
+    </div>
+    <div class="cancel">Free cancellation until 5 March · Book now, pay later</div>
+    <div class="quote">“Quiet at night, the tiled kitchen is lovely, and Maria left a list of places to eat taped to the fridge.”
+      <b>— Recent guest, January</b></div>
+  </div>
+  <div class="pricebar">
+    <div>
+      <span class="amt">€78 <small>/ night</small></span>
+      <span class="total">€390 for 5 nights · €45 cleaning fee</span>
+    </div>
+    <button class="cta">Reserve</button>
+  </div>
+</body>
+</html>
