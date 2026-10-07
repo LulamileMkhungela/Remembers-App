@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Your Phone Remembers — search your life by meaning</title>
+<meta name="description" content="Ask your phone a question in plain language and it finds the screenshot, note, photo or saved page you forgot about." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%235eead4'/%3E%3Cpath d='M16 7a4.5 4.5 0 0 0-4.5 4.5v3.2A4.5 4.5 0 0 0 16 19a4.5 4.5 0 0 0 4.5-4.3v-3.2A4.5 4.5 0 0 0 16 7Zm0 13.6c-1.4 0-2.6.6-3.5 1.6a.9.9 0 0 0 .7 1.5h5.6a.9.9 0 0 0 .7-1.5 4.8 4.8 0 0 0-3.5-1.6Z' fill='%230b0d12'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<div class="app-shell">
+
+  <header class="masthead">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="26" height="26" role="img">
+          <defs>
+            <linearGradient id="brandGradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+              <stop stop-color="#5eead4"/><stop offset="1" stop-color="#8b93ff"/>
+            </linearGradient>
+          </defs>
+          <rect width="32" height="32" rx="9" fill="url(#brandGradient)"/>
+          <circle cx="14.5" cy="14.5" r="5.4" fill="none" stroke="#06231f" stroke-width="2.4"/>
+          <path d="M18.6 18.6 24 24" stroke="#06231f" stroke-width="2.6" stroke-linecap="round"/>
+          <circle cx="23.4" cy="8.6" r="2.4" fill="#06231f"/>
+        </svg>
+      </span>
+      <div class="brand-text">
+        <strong>Your Phone Remembers</strong>
+        <span>on-device memory search · by Lulamile Mkhungela</span>
+      </div>
+    </div>
+    <div class="device-strip" id="deviceStrip">
+      <div class="device-pill" title="Embedding model running locally"><span class="dot dot-live" id="embedDot"></span><span id="embedLabel">loading model…</span></div>
+      <div class="device-pill" title="Local index"><span class="dot" id="indexDot"></span><span id="indexLabel">indexing…</span></div>
+      <button class="btn btn-ghost" id="openImport" type="button">＋ Add memories</button>
+    </div>
+  </header>
+
+  <div class="warning-banner" id="indexWarning" hidden role="status"></div>
+
+  <section class="search-card" aria-label="Ask your phone">
+    <form class="search-row" id="searchForm" autocomplete="off">
+      <span class="search-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path d="M10.5 3a7.5 7.5 0 1 1-5.3 12.8l-2 2a1 1 0 1 1-1.4-1.4l2-2A7.5 7.5 0 0 1 10.5 3Zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z" fill="currentColor"/></svg>
+      </span>
+      <input id="query" name="q" type="search" placeholder="Ask your phone anything…  “What was that website with the cheap flights I found?”" aria-label="Search your memories" />
+      <button class="btn btn-primary" id="searchBtn" type="submit">Remember</button>
+    </form>
+    <div class="chip-row" id="suggestions" aria-label="Example questions"></div>
+    <div class="pipeline" id="pipeline" hidden>
+      <span class="pipeline-step" data-step="route"><i></i>reading your question</span>
+      <span class="pipeline-sep">→</span>
+      <span class="pipeline-step" data-step="embed"><i></i>embedding on-device</span>
+      <span class="pipeline-sep">→</span>
+      <span class="pipeline-step" data-step="retrieve"><i></i>searching memories</span>
+      <span class="pipeline-sep">→</span>
+      <span class="pipeline-step" data-step="compose"><i></i>connecting evidence</span>
+    </div>
+  </section>
+
+  <main class="workspace" id="workspace">
+    <div class="column column-left" data-column="left">
+      <section class="panel answer-panel" id="answerPanel" aria-live="polite">
+        <div class="panel-head">
+          <h2>What your phone found</h2>
+          <span class="badge badge-soft" id="answerBadge">waiting for a question</span>
+        </div>
+        <div class="panel-body" id="answerBody">
+          <p class="muted">Ask something you half-remember. The answer is assembled from your own screenshots, notes, photos and saved pages — with the evidence underneath.</p>
+        </div>
+      </section>
+
+      <section class="panel" id="connectionsPanel">
+        <div class="panel-head">
+          <h2>How it connects</h2>
+          <span class="badge badge-soft" id="connectionsBadge">shared details across memories</span>
+        </div>
+        <div class="panel-body" id="connectionsBody">
+          <p class="muted">Run a search and the app links the memories that share a phone number, a name, a site or a place.</p>
+        </div>
+      </section>
+
+      <section class="panel" id="timelinePanel">
+        <div class="panel-head">
+          <h2>When it happened</h2>
+          <span class="badge badge-soft" id="timelineBadge">timeline</span>
+        </div>
+        <div class="panel-body" id="timelineBody">
+          <p class="muted">Matches in the order your phone lived through them.</p>
+        </div>
+      </section>
+
+      <section class="panel" id="statsPanel">
+        <div class="panel-head">
+          <h2>Inside the memory</h2>
+          <span class="badge badge-soft" id="deviceBadge">on-device models</span>
+        </div>
+        <div class="panel-body stat-grid" id="statsGrid"></div>
+      </section>
+
+      <section class="panel" id="galleryPanel">
+        <div class="panel-head">
+          <h2>What your phone remembers</h2>
+          <span class="badge badge-soft" id="galleryBadge">0 items</span>
+        </div>
+        <div class="panel-body">
+          <div class="gallery" id="gallery">
+            <p class="muted">Indexed screenshots, photos, notes and pages appear here.</p>
+          </div>
+          <button class="btn btn-ghost btn-block" id="galleryMore" type="button" hidden>Show all</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="column column-right" data-column="right">
+      <section class="panel results-panel">
+        <div class="panel-head">
+          <h2>Memories</h2>
+          <div class="result-controls">
+            <div class="segmented" id="kindFilter" role="tablist">
+              <button class="seg is-active" data-kind="" role="tab" type="button">All</button>
+              <button class="seg" data-kind="screenshot" role="tab" type="button">Screenshots</button>
+              <button class="seg" data-kind="note" role="tab" type="button">Notes</button>
+              <button class="seg" data-kind="page" role="tab" type="button">Pages</button>
+              <button class="seg" data-kind="message" role="tab" type="button">Messages</button>
+              <button class="seg" data-kind="photo" role="tab" type="button">Photos</button>
+            </div>
+            <span class="badge badge-soft" id="resultsBadge">0</span>
+          </div>
+        </div>
+        <div class="panel-body" id="resultsBody">
+          <div class="empty-state">
+            <p class="muted">Everything your phone remembers will show up here, ranked by how close it is to what you meant.</p>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <span>Embeddings and OCR run locally — the model ships with the app, nothing is sent anywhere.</span>
+    <span>Developed by <b>Lulamile Mkhungela</b> · verify it with <span class="mono">npm run verify</span>.</span>
+    <span class="footer-right" id="footerStats"></span>
+  </footer>
+</div>
+
+<!-- ------------------------------------------------------------- drawer ---- -->
+<aside class="drawer" id="drawer" hidden aria-modal="true" role="dialog" aria-label="Memory detail">
+  <div class="drawer-head">
+    <div class="drawer-title">
+      <h3 id="drawerTitle">Memory</h3>
+      <span class="badge badge-soft" id="drawerMeta"></span>
+    </div>
+    <button class="icon-btn" id="drawerClose" type="button" aria-label="Close">✕</button>
+  </div>
+  <div class="drawer-tabs" role="tablist">
+    <button class="tab is-active" data-tab="image" role="tab" type="button">Image</button>
+    <button class="tab" data-tab="text" role="tab" type="button">Text</button>
+    <button class="tab" data-tab="analysis" role="tab" type="button">Analysis</button>
+    <button class="tab" data-tab="related" role="tab" type="button">Related</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</aside>
+<div class="scrim" id="scrim" hidden></div>
+
+<!-- ------------------------------------------------------------- import ---- -->
+<aside class="drawer drawer-import" id="importDrawer" hidden aria-modal="true" role="dialog" aria-label="Add memories">
+  <div class="drawer-head">
+    <div class="drawer-title">
+      <h3>Add memories to your phone index</h3>
+      <span class="badge badge-soft">real OCR · real embeddings</span>
+    </div>
+    <button class="icon-btn" id="importClose" type="button" aria-label="Close">✕</button>
+  </div>
+  <div class="drawer-body">
+    <section class="import-block">
+      <h4>Drop screenshots or photos</h4>
+      <p class="muted small">Every image is read with Tesseract OCR on this machine, then embedded with all-MiniLM-L6-v2. Nothing is uploaded anywhere.</p>
+      <div class="dropzone" id="dropzone">
+        <input type="file" id="fileInput" accept="image/*" multiple hidden />
+        <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v8.6l2.3-2.3a1 1 0 1 1 1.4 1.4l-4 4a1 1 0 0 1-1.4 0l-4-4a1 1 0 1 1 1.4-1.4L11 12.6V4a1 1 0 0 1 1-1ZM5 18a1 1 0 0 1 1 1h12a1 1 0 1 1 0 2H6a1 1 0 0 1-1-1Z" fill="currentColor"/></svg>
+        <strong>Tap to choose images</strong>
+        <span class="muted small">or drag them here — screenshots, photos of signs, receipts, cards</span>
+      </div>
+      <div class="field-row">
+        <label class="field"><span>Source</span><input id="uploadSource" value="Camera" /></label>
+        <label class="field"><span>Location (optional)</span><input id="uploadLocation" placeholder="Sandton, Johannesburg" /></label>
+      </div>
+      <div class="progress-list" id="uploadProgress"></div>
+    </section>
+
+    <section class="import-block">
+      <h4>Paste a note, message or saved page</h4>
+      <label class="field"><span>Title</span><input id="noteTitle" placeholder="Geyser repair - who to call" /></label>
+      <div class="field-row">
+        <label class="field"><span>Type</span>
+          <select id="noteKind">
+            <option value="note">Note</option>
+            <option value="message">Message</option>
+            <option value="page">Saved page</option>
+            <option value="email">Email</option>
+          </select>
+        </label>
+        <label class="field"><span>Source</span><input id="noteSource" placeholder="Notes" /></label>
+      </div>
+      <label class="field"><span>Text</span><textarea id="noteBody" rows="6" placeholder="Paste the text exactly as it was saved…"></textarea></label>
+      <div class="drawer-actions">
+        <button class="btn btn-primary" id="saveNote" type="button">Index this memory</button>
+        <button class="btn btn-ghost" id="redoIndex" type="button" title="Clears the index and re-runs OCR over the sample phone data">Rebuild from scratch</button>
+      </div>
+      <p class="muted small" id="importStatus"></p>
+    </section>
+  </div>
+</aside>
+
+<script type="module" src="/app.js"></script>
+</body>
+</html>

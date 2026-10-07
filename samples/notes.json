@@ -1,0 +1,181 @@
+{
+  "description": "Text memories a real phone would hold: notes, saved pages, messages and emails. Seeded together with samples/gallery so the app has your whole phone memory to search.",
+  "items": [
+    {
+      "title": "Cape Town trip - what to book",
+      "kind": "note",
+      "source": "Notes",
+      "capturedAt": "2026-04-18T21:40:00+02:00",
+      "location": "Johannesburg",
+      "body": "Flights found on cheapflights.co.za: Lift Air R1 289 return, Tue 21 April 06:15 JNB to CPT. FlySafair was R1 344 if Lift Air is full.\nAsk Thabo Mokoena to check the Polo's clutch before the long drive down (071 555 0199).\nBook the Kloofendal trail for the Saturday after we get back.\nAirbnb in Dullstroom on the way home is already paid."
+    },
+    {
+      "title": "Wifi passwords",
+      "kind": "note",
+      "source": "Notes",
+      "capturedAt": "2026-09-14T18:40:00+02:00",
+      "location": "Dullstroom, Mpumalanga",
+      "body": "Protea Guest House wifi: Protea_Guest / Sunset2024! (reception 011 555 7788)\nAirbnb Dullstroom cottage wifi: Dullstroom_Cottage / key safe code 4402, host Pieter 083 555 4477\nHome fibre: MTN-BB9F21 - password KoffieBoontjie#7\nGuest network at the office: PULSE-Guest / pulsefit2026"
+    },
+    {
+      "title": "Lift Air booking confirmation",
+      "kind": "message",
+      "source": "Messages",
+      "capturedAt": "2026-04-18T21:26:00+02:00",
+      "location": "Johannesburg",
+      "body": "Your Lift Air booking LT7X4QP is confirmed. Tue 21 Apr, 06:15 Johannesburg (JNB) to Cape Town (CPT), seat 14A window. Fare paid R1 289 return. Check in online from 18:00 the day before."
+    },
+    {
+      "title": "Mom about the dentist",
+      "kind": "message",
+      "source": "Messages",
+      "capturedAt": "2026-09-16T07:12:00+02:00",
+      "location": "Johannesburg",
+      "body": "Mom: Don't forget your dentist appointment is Thursday at 15:30 with Dr Naidoo at 14 Rosebank Road. I'll pick you up at 14:45 outside your flat. Take your medical aid card with you."
+    },
+    {
+      "title": "Pilates classes booked",
+      "kind": "note",
+      "source": "Notes",
+      "capturedAt": "2026-05-11T07:40:00+02:00",
+      "location": "Rosebank, Johannesburg",
+      "body": "Booked 4 Pilates Reformer classes at PulseFit with Zanele, Tuesdays 18:00, R120 a class. Spin 45 on Wednesday morning is R95 if I want to add it. Cancel at least 12 hours before or you lose the session."
+    },
+    {
+      "title": "Zara jacket - wait for the sale",
+      "kind": "note",
+      "source": "Notes",
+      "capturedAt": "2026-05-30T13:05:00+02:00",
+      "location": "Sandton City, Johannesburg",
+      "body": "The padded winter jacket at Zara is R899 in the sale, normal price was R1 499. Water repellent shell, roomy fit, they had medium and large. Sale ends Sunday, so decide by Saturday."
+    },
+    {
+      "title": "Discovery Health claim CLM448120",
+      "kind": "email",
+      "source": "Gmail",
+      "capturedAt": "2026-01-27T13:25:00+02:00",
+      "location": "Johannesburg",
+      "body": "Discovery Health: we received claim CLM448120 for the doctor's visit on 21 January. R940 will be paid into your nominated bank account within seven working days. Keep the invoice and receipt for your records."
+    },
+    {
+      "title": "Dryer error E20 - saved fix",
+      "kind": "page",
+      "source": "Chrome",
+      "capturedAt": "2025-12-03T19:40:00+02:00",
+      "url": "repairguy.co.za",
+      "body": "E20 on a Bosch washer dryer means the drain pump cannot empty the drum. Switch off at the wall, wait five minutes, drain the filter at the bottom front into a tray, remove lint and coins from the impeller, refit the filter and run a rinse cycle. Replacement drain pump costs about R480 at Mica Hardware if the error comes back."
+    },
+    {
+      "title": "EskomSePush tonight",
+      "kind": "message",
+      "source": "EskomSePush",
+      "capturedAt": "2026-07-21T16:44:00+02:00",
+      "location": "Randburg, Johannesburg",
+      "body": "Load shedding alert: Stage 4 from 17:00 to 19:30 tonight for Zone 7. Next slot tomorrow 01:00 to 03:30 and again 09:00 to 11:30. Charge the inverter and the laptop before 17:00."
+    },
+    {
+      "title": "Bank OTP for Takealot",
+      "kind": "message",
+      "source": "Messages",
+      "capturedAt": "2026-10-02T20:11:00+02:00",
+      "location": "Johannesburg",
+      "body": "Absa: OTP 448201 for your Takealot purchase of R1 299. Never share this code with anyone. If this wasn't you, call 0860 123 000 immediately."
+    },
+    {
+      "title": "Laptop repair - Matrix Computers",
+      "kind": "note",
+      "source": "Notes",
+      "capturedAt": "2026-02-19T11:15:00+02:00",
+      "location": "Bryanston, Johannesburg",
+      "body": "Laptop quote from Matrix Computers in Bryanston: 1TB SSD upgrade R1 299 plus R350 labour, ready in two days. Ask for Faizel on 011 555 3321. Bring the charger and the old drive if I want the data copied across."
+    },
+    {
+      "title": "Plumber who fixed the geyser",
+      "kind": "note",
+      "source": "Notes",
+      "capturedAt": "2026-06-15T08:20:00+02:00",
+      "location": "Randburg, Johannesburg",
+      "body": "Denzel the plumber replaced the geyser element and thermostat on Saturday morning, R1 850 cash including the part. He works through Northern Plumbing and says WhatsApp is the fastest way to reach him. His cell is 082 555 1130. Two year guarantee on the element."
+    },
+    {
+      "title": "SARS provisional tax",
+      "kind": "page",
+      "source": "Chrome",
+      "capturedAt": "2026-08-31T22:05:00+02:00",
+      "url": "sars.gov.za",
+      "body": "How to submit a provisional tax return: sign in to eFiling, choose Returns, then Provisional Tax (IRP6). Capture income and deductions, attach the IRP5 from your employer, then submit and pay by the due date. Penalties apply if the return is late or understated. Keep the acknowledgement number."
+    },
+    {
+      "title": "Lost card - how to block it",
+      "kind": "page",
+      "source": "Chrome",
+      "capturedAt": "2026-01-09T16:50:00+02:00",
+      "url": "standardbank.co.za",
+      "body": "Standard Bank: to block a lost or stolen card open the app, go to Cards, choose the card and tap Block Card. You can also call 0860 123 000 or use the WhatsApp line. A replacement card takes about five working days and is delivered to your branch."
+    },
+    {
+      "title": "Airbnb Dullstroom confirmed",
+      "kind": "email",
+      "source": "Gmail",
+      "capturedAt": "2026-09-10T09:32:00+02:00",
+      "location": "Dullstroom, Mpumalanga",
+      "body": "Airbnb booking confirmed for the Dullstroom cottage from 14 to 16 September. Total R2 350 for two nights, host is Pieter on 083 555 4477. Check in after 14:00, the key safe code is 4402. Bring firewood for the fireplace, the town closes early on Sundays."
+    },
+    {
+      "title": "Recipe - creamy garlic pasta",
+      "kind": "note",
+      "source": "Notes",
+      "capturedAt": "2026-02-09T19:30:00+02:00",
+      "location": "Johannesburg",
+      "body": "Naledi's version of the creamy garlic pasta: 300g linguine, 4 cloves garlic in butter, 200ml cream, two handfuls spinach, finish with parmesan and black pepper. She leaves out the chilli and adds lemon zest. Fifteen minutes start to finish."
+    },
+    {
+      "title": "Birthday ideas for Naledi",
+      "kind": "note",
+      "source": "Notes",
+      "capturedAt": "2026-08-25T21:02:00+02:00",
+      "location": "Johannesburg",
+      "body": "Naledi's birthday on 12 November. Ideas: the hike at Kloofendal she keeps mentioning, that creamy garlic pasta at home with the good parmesan, or the pilates voucher at PulseFit. She wanted the padded jacket from Zara but it sold out in medium."
+    },
+    {
+      "title": "Car licence renewal",
+      "kind": "note",
+      "source": "Notes",
+      "capturedAt": "2026-09-01T12:00:00+02:00",
+      "location": "Johannesburg",
+      "body": "Car licence disc expires 31 October 2026. Renew at the licensing department in Randburg or online with the CIPC payment reference. Bring proof of address, ID copy and the last disc. Queue is shortest before 09:00 on a Wednesday."
+    },
+    {
+      "title": "Sipho's charger",
+      "kind": "message",
+      "source": "Messages",
+      "capturedAt": "2026-06-30T21:18:00+02:00",
+      "location": "Johannesburg",
+      "body": "Sipho: I left my laptop charger at your place on Saturday, can I fetch it Sunday morning? Also bring that series we spoke about, Shogun, I want to start it this week."
+    },
+    {
+      "title": "School trip form",
+      "kind": "note",
+      "source": "Notes",
+      "capturedAt": "2026-07-08T07:45:00+02:00",
+      "location": "Johannesburg",
+      "body": "School trip to the Cradle of Humankind on 24 July. Needs two passport photos, the signed indemnity form and R450 by Friday. Departure at 06:30 from the school gate, return about 17:00. Pack a lunch and a water bottle."
+    },
+    {
+      "title": "Home loan statement",
+      "kind": "email",
+      "source": "Gmail",
+      "capturedAt": "2026-10-01T06:02:00+02:00",
+      "location": "Johannesburg",
+      "body": "Absa: your home loan statement for September is ready in the app. The repayment of R8 940 was received on 30 September and the outstanding balance is now R1 048 220. Increase the monthly payment by R500 to shorten the term by about three years."
+    },
+    {
+      "title": "How to claim from the RAF",
+      "kind": "page",
+      "source": "Chrome",
+      "capturedAt": "2026-05-19T20:15:00+02:00",
+      "url": "raf.co.za",
+      "body": "Road Accident Fund claims: you must claim within three years of a road accident. You need the accident report from the police, hospital records, and proof of earnings if you are claiming lost income. Claims can be lodged online or through an attorney, and no attorney may charge you before the claim is paid out."
+    }
+  ]
+}
