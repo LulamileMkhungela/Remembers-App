@@ -129,6 +129,8 @@ samples/
   gallery/         19 generated screenshots/photos (real PNGs, really OCR'd)
   notes.json       22 notes, messages, emails and saved pages
 tools/
+  capture.mjs        renders the real page in headless Chromium and writes
+                     screenshots/ (dev aid; see "Reviewing the UI" below)
   gen-samples.py     regenerates the sample phone data with Pillow
   verify.mjs         environment + model self-test
   check-ui.mjs       static UI integrity checks (see below)
@@ -169,6 +171,31 @@ API, no telemetry and no network call at runtime.
 
 ---
 
+## Reviewing the UI
+
+Because layout bugs do not show up in a DOM test, the app ships a browser harness:
+
+```bash
+# once (outside the repo, ~110 MB of browser):
+mkdir -p /tmp/ss && cd /tmp/ss && npm init -y
+npm i puppeteer-core@23 @sparticuz/chromium@153
+
+npm start                 # in the repo
+node tools/capture.mjs    # writes screenshots/*.png at 1440/1280/900/390 px
+```
+
+It drives the real page — home, a search, the drawer with the OCR overlay, the
+import panel — and reports what a human would notice: horizontal overflow, elements
+wider than the viewport, text below 3.2:1 contrast, and panels with dead space. The
+renders it produced are checked in under `docs/screenshots/`:
+
+| view | file |
+| --- | --- |
+| answer + evidence | `docs/screenshots/desktop-search.jpg` |
+| first load | `docs/screenshots/desktop-home.jpg` |
+| the drawer, with OCR boxes on the wifi card | `docs/screenshots/desktop-drawer-ocr.jpg` |
+| phone width | `docs/screenshots/mobile-home.jpg` |
+
 ## Why there is a `check:ui` script
 
 Two bugs shipped in the first UI pass and neither showed up in a DOM test, because a
@@ -180,6 +207,8 @@ DOM test has no layout engine:
   half of the page.
 - `.drawer-body` had `overflow: auto` but no `flex: 1; min-height: 0` inside the
   fixed-height flex drawer, so a long memory was cut off instead of scrolling.
+- the brand logo in the header was written with `%5eead4`-style colours, which are
+  only valid inside a `data:` URI — in the document the SVG rendered as a dark blob.
 
 `tools/check-ui.mjs` now fails the build on that whole class of mistake: it parses
 `index.html`, `styles.css` and `app.js` and checks that

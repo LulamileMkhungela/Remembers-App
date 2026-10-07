@@ -18,7 +18,7 @@ import { Ingestor, embeddingText } from "./lib/ingest.js";
 import { route, score, buildAnswer, connect, timeline, toCard } from "./lib/search.js";
 import { parseMultipart, readBody } from "./lib/multipart.js";
 import { seedSamples, sampleCount } from "./lib/bootstrap.js";
-import { cleanText, formatBytes } from "./lib/text.js";
+import { cleanText, formatBytes, sentences } from "./lib/text.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
@@ -104,6 +104,16 @@ function serveStatic(res, filePath) {
 
 function docPayload(doc, queryTerms = []) {
   const card = toCard(doc, queryTerms);
+  if (queryTerms.length) {
+    card.snippet = { ...card.snippet, terms: queryTerms };
+    card.sentences = sentences(doc.body || "")
+      .filter((line) => line.length > 24 && line.length < 260)
+      .slice(0, 6)
+      .map((line) => ({
+        text: line,
+        score: queryTerms.reduce((n, t) => n + (line.toLowerCase().includes(t) ? 1 : 0), 0),
+      }));
+  }
   return {
     ...card,
     ocrLines: doc.ocrLines || [],
@@ -259,6 +269,15 @@ const server = http.createServer(async (req, res) => {
       const bySource = {};
       let oldest = null;
       let newest = null;
+      const ocrDocs = store.docs.filter((d) => d.textSource === "ocr");
+      // OCR quality comes from the indexed documents, not the in-process worker
+      // counters - those reset on every restart and made the panel read "—".
+      const avgConfidence = ocrDocs.length
+        ? ocrDocs.reduce((sum, d) => sum + (d.ocr?.confidence || 0), 0) / ocrDocs.length
+        : 0;
+      const avgOcrMs = ocrDocs.length
+        ? Math.round(ocrDocs.reduce((sum, d) => sum + (d.ocr?.ms || 0), 0) / ocrDocs.length)
+        : 0;
       for (const d of store.docs) {
         byKind[d.kind] = (byKind[d.kind] || 0) + 1;
         bySource[d.source] = (bySource[d.source] || 0) + 1;
@@ -271,13 +290,13 @@ const server = http.createServer(async (req, res) => {
         bySource,
         oldest,
         newest,
-        ocrDocs: store.docs.filter((d) => d.textSource === "ocr").length,
+        ocrDocs: ocrDocs.length,
         providedDocs: store.docs.filter((d) => d.textSource === "provided").length,
         entities: store.docs.reduce((s, d) => s + (d.entities?.length || 0), 0),
         words: store.docs.reduce((s, d) => s + (d.tokens?.length || 0), 0),
         bytes: store.docs.reduce((s, d) => s + (d.size || 0), 0),
         embedder: embedder.stats,
-        ocr: ocr.summary,
+        ocr: { ...ocr.summary, indexed: ocrDocs.length, avgConfidence: +avgConfidence.toFixed(1), avgMs: avgOcrMs },
         seed: { ...seedState, error: seedState.error },
       });
     }
@@ -304,8 +323,8 @@ const server = http.createServer(async (req, res) => {
         "How do I fix the E20 error on my washing machine?",
         "What is the wifi password at the guest house?",
         "When is my dentist appointment?",
-        "How much was the plumber who fixed the geyser?",
-        "What is my gift idea list for Naledi?",
+        "How much did the plumber charge to fix the geyser?",
+        "What are my birthday gift ideas for Naledi?",
         "When is load shedding tonight?",
       ];
       return sendJson(res, 200, { suggestions: seeds.slice(0, Math.min(seeds.length, store.size ? 8 : 4)) });

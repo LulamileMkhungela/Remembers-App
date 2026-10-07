@@ -5,3 +5,4 @@ public/vendor/
 __pycache__/
 *.log
 .DS_Store
+/screenshots/

@@ -19,6 +19,7 @@ const state = {
   documents: [],
   stats: null,
   searchable: true,
+  galleryExpanded: false,
   drawer: { doc: null, tab: "image", boxes: true },
 };
 
@@ -76,6 +77,22 @@ function highlightSnippet(snippet) {
 }
 
 const KIND_GLYPH = { photo: "▣", screenshot: "▤", note: "✎", page: "❐", message: "✉", email: "✉" };
+
+/**
+ * Wrap query terms in <mark>, escaping as we go.
+ * Works for any snippet text, including ones the client picked out of the
+ * document's sentences (where the server never supplied highlight ranges).
+ */
+function highlightText(text, terms = []) {
+  const raw = String(text ?? "");
+  const list = [...new Set((terms || []).filter((t) => t && t.length > 2))].sort((a, b) => b.length - a.length);
+  if (!list.length) return esc(raw);
+  const pattern = list.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  return raw
+    .split(new RegExp(`(${pattern})`, "gi"))
+    .map((part, i) => (i % 2 ? `<mark>${esc(part)}</mark>` : esc(part)))
+    .join("");
+}
 
 /* ------------------------------------------------------------ status loop --- */
 
@@ -141,7 +158,7 @@ async function refreshStats() {
   const grid = $("#statsGrid");
   const stats_rows = [
     ["Memories", stats.total, `${Object.keys(stats.byKind).length} kinds · ${Object.keys(stats.bySource).length} sources`],
-    ["Read by OCR", stats.ocrDocs, stats.ocr.avgConfidence ? `${stats.ocr.avgConfidence}% avg confidence` : "—"],
+    ["Read by OCR", stats.ocrDocs, stats.ocr.avgConfidence ? `${stats.ocr.avgConfidence}% avg confidence` : "no images indexed"],
     ["Words indexed", stats.words.toLocaleString("en-ZA"), `${stats.entities} connected details`],
     ["Source data", formatBytes(stats.bytes), stats.oldest ? `since ${absoluteDate(stats.oldest)}` : ""],
   ];
@@ -151,8 +168,9 @@ async function refreshStats() {
     )
     .join("");
   $("#footerStats").textContent =
-    `${stats.total} memories · ${stats.ocr.jobs} images through OCR (${stats.ocr.avgMs} ms avg) · ` +
-    `embeddings ${stats.embedder.mode || "loading"} · ${stats.embedder.encoded || 0} vectors`;
+    `${stats.total} memories · ${stats.ocr.indexed ?? stats.ocrDocs} images read by OCR ` +
+    `(${stats.ocr.avgMs} ms avg, ${stats.ocr.avgConfidence}% confidence) · ` +
+    `embeddings ${stats.embedder.mode || "loading"}`;
   $("#deviceBadge").textContent = stats.embedder.ready ? "models loaded" : "loading";
   $("#galleryBadge").textContent = `${stats.total} items`;
 }
@@ -170,17 +188,26 @@ function formatBytes(b) {
 
 /* ---------------------------------------------------------------- gallery --- */
 
+const GALLERY_LIMIT = 12;
+
 async function loadGallery({ seedResults = false } = {}) {
   const { documents } = await api("/api/documents?limit=90&sort=recent");
   state.documents = documents;
   if (seedResults && !state.last) renderRecent(documents);
   const gallery = $("#gallery");
+  const more = $("#galleryMore");
   if (!documents.length) {
     gallery.innerHTML = `<p class="muted">Indexed screenshots, photos, notes and pages appear here.</p>`;
+    more.hidden = true;
     return;
   }
+  const shown = state.galleryExpanded ? documents : documents.slice(0, GALLERY_LIMIT);
+  more.hidden = documents.length <= GALLERY_LIMIT;
+  more.textContent = state.galleryExpanded
+    ? `Show fewer (${GALLERY_LIMIT})`
+    : `Show all ${documents.length}`;
   gallery.innerHTML = "";
-  for (const doc of documents) {
+  for (const doc of shown) {
     const item = el("div", "gallery-item");
     item.title = `${doc.title} — ${doc.source} (${absoluteDate(doc.capturedAt)})`;
     if (doc.fileUrl) {
@@ -345,6 +372,25 @@ function bindFollowUps(scope) {
   });
 }
 
+/** Fallback snippet for cards that were not produced by a search. */
+function localSnippet(doc) {
+  const source = (doc.body || doc.deck || doc.title || "").replace(/\s+/g, " ").trim();
+  const text = source.length > 190 ? `${source.slice(0, 187).trimEnd()}…` : source;
+  return { text, ranges: [] };
+}
+
+/** The deck (album caption) is only worth a line if it adds something. */
+function showDeck(snip, deck, title) {
+  if (!deck || deck.length < 12) return false;
+  const norm = (t) => String(t || "").toLowerCase().replace(/[^a-z0-9 ]/g, "").trim();
+  const d = norm(deck);
+  const s = norm(snip?.text || "");
+  const t = norm(title);
+  if (d === t) return false;
+  if (s && (s.includes(d.slice(0, 60)) || d.includes(s.slice(0, 60)))) return false;
+  return true;
+}
+
 function scoreBars(breakdown) {
   if (!breakdown) return "";
   return ["semantic", "keyword", "coverage", "entity", "phrase"]
@@ -355,15 +401,26 @@ function scoreBars(breakdown) {
     .join("");
 }
 
-function resultCard(doc, { score, breakdown, reasons = [], snippet, queryTerms = [] } = {}) {
+/**
+ * One card renderer for search hits and the default "recent" view.
+ * `avoid` holds snippet text already shown, so ten results do not repeat one
+ * paragraph; when every sentence is used we fall back to the best overlap.
+ */
+function resultCard(doc, { score, breakdown, reasons = [], queryTerms = [], avoid = [] } = {}) {
   const card = el("article", "result");
   const chips = [
     ...reasons.map((x) => `<span class="result-chip evidence">${esc(x)}</span>`),
     ...(doc.entities || []).slice(0, 3).map((e) => `<span class="result-chip">${esc(e.type)}: ${esc(e.label)}</span>`),
   ].join("");
-  const snip = snippet || doc.snippet;
+  let snip = doc.snippet || localSnippet(doc);
+  if (queryTerms.length && doc.sentences?.length) {
+    const taken = new Set(avoid.map((a) => a.slice(0, 46).toLowerCase()));
+    const fresh = doc.sentences.find((s) => !taken.has(s.text.slice(0, 46).toLowerCase()));
+    if (fresh) snip = fresh;
+  }
+  const deck = doc.deck || "";
   card.innerHTML = `
-    <div class="result-thumb">
+    <div class="result-thumb${doc.kind === "photo" ? " is-photo" : ""}">
       ${doc.fileUrl ? `<img src="${doc.fileUrl}" alt="" loading="lazy" />` : `<span class="glyph">${KIND_GLYPH[doc.kind] || "✎"}</span>`}
     </div>
     <div class="result-main">
@@ -382,11 +439,24 @@ function resultCard(doc, { score, breakdown, reasons = [], snippet, queryTerms =
         ${doc.location ? `<span>·</span><span>${esc(doc.location)}</span>` : ""}
         ${doc.textSource === "ocr" ? `<span>·</span><span title="Text read from the image">OCR ${doc.ocr?.confidence ?? "–"}%</span>` : ""}
       </div>
-      <div class="result-snippet">${highlightSnippet(snip)}</div>
+      <div class="result-snippet">${highlightText(snip?.text, queryTerms)}</div>
+      ${showDeck(snip, deck, doc.title) ? `<div class="result-deck">${esc(deck)}</div>` : ""}
       ${chips ? `<div class="result-chips">${chips}</div>` : ""}
     </div>`;
   card.addEventListener("click", () => openDrawer(doc.id, reasons));
   return card;
+}
+
+/** Rebuild cards from the prepared search payload (they carry the spans). */
+function renderResultList(results) {
+  const list = el("div", "result-list");
+  const used = [];
+  for (const r of results) {
+    const card = resultCard(r, { score: r.score, breakdown: r.breakdown, reasons: r.reasons, queryTerms: r.snippet?.terms || [], avoid: used });
+    if (r.snippet?.text) used.push(r.snippet.text);
+    list.appendChild(card);
+  }
+  return list;
 }
 
 function renderResults(data) {
@@ -397,10 +467,7 @@ function renderResults(data) {
     body.innerHTML = `<div class="empty-state"><p class="muted">Nothing matched. ${esc(data.filterNote || "")}</p></div>`;
     return;
   }
-  const list = el("div", "result-list");
-  for (const r of results) {
-    list.appendChild(resultCard(r, { score: r.score, breakdown: r.breakdown, reasons: r.reasons }));
-  }
+  const list = renderResultList(results);
   body.innerHTML = "";
   body.appendChild(list);
   if (data.filterNote) body.insertAdjacentHTML("beforeend", `<p class="muted small">${esc(data.filterNote)}</p>`);
@@ -414,7 +481,7 @@ function renderRecent(documents) {
   $("#resultsBadge").textContent = `${documents.length} in the index`;
   if (!recent.length) return;
   const list = el("div", "result-list");
-  for (const doc of recent) list.appendChild(resultCard(doc, {}));
+  for (const doc of recent) list.appendChild(resultCard(doc, { queryTerms: [] }));
   body.innerHTML = `<p class="muted small">Recently remembered — ask a question above to search all of it by meaning.</p>`;
   body.appendChild(list);
 }
@@ -773,6 +840,10 @@ function bindEvents() {
     closeImport();
   });
   $("#openImport").addEventListener("click", openImport);
+  $("#galleryMore").addEventListener("click", async () => {
+    state.galleryExpanded = !state.galleryExpanded;
+    await loadGallery();
+  });
   $("#saveNote").addEventListener("click", saveNote);
   $("#redoIndex").addEventListener("click", rebuildIndex);
 

@@ -490,9 +490,9 @@ export function buildAnswer(routed, results, { maxBullets = 4 } = {}) {
   const seenLines = new Set();
   const relevant = results.filter((r) => r.score >= Math.max(0.14, best * 0.32));
 
-  for (const [rank, result] of relevant.slice(0, 3).entries()) {
+  for (const [rank, result] of relevant.slice(0, 4).entries()) {
     const scored = sentenceScores(result.doc, routed.terms, routed.entities).sort((a, b) => b.score - a.score);
-    for (const s of scored.slice(0, rank === 0 ? 3 : 2)) {
+    for (const s of scored.slice(0, rank === 0 ? 2 : 1)) {
       const key = s.line.toLowerCase().slice(0, 60);
       if (seenLines.has(key)) continue;
       seenLines.add(key);
@@ -779,6 +779,7 @@ export function timeline(results) {
 /** A compact card shape for lists. */
 export function toCard(doc, queryTerms = []) {
   const snip = snippet(doc.body || doc.caption || doc.title, queryTerms, 190);
+  const deck = cleanText(doc.caption || "").replace(/\s+/g, " ").trim();
   return {
     id: doc.id,
     title: doc.title,
@@ -798,6 +799,7 @@ export function toCard(doc, queryTerms = []) {
     keywords: (doc.keywords || []).slice(0, 6),
     entities: (doc.entities || []).slice(0, 8),
     snippet: snip,
+    deck: truncate(deck, 240),
     body: truncate(cleanText(doc.body || ""), 4000),
     reasons: [],
   };

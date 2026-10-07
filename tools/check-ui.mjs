@@ -71,7 +71,28 @@ for (const { sel } of rules) for (const c of sel.matchAll(/\.([a-z][\w-]*)/gi)) 
 const usedClasses = new Set();
 for (const m of html.matchAll(/class="([^"]+)"/g)) m[1].split(/\s+/).forEach((c) => c && usedClasses.add(c));
 for (const m of js.matchAll(/el\("[a-z]+",\s*"([^"]+)"/g)) m[1].split(/\s+/).forEach((c) => c && usedClasses.add(c));
-for (const m of js.matchAll(/class="([^"]+)"/g)) m[1].split(/\s+/).forEach((c) => c && usedClasses.add(c.replace(/\$\{.*?\}/g, "")));
+/**
+ * Collect literal class names from app.js.
+ * Template-literal expressions may contain quotes ("is-photo"), so scan to the
+ * matching closing quote while tracking ${…} depth, then drop the expressions.
+ */
+for (let i = js.indexOf('class="'); i !== -1; i = js.indexOf('class="', i + 1)) {
+  let j = i + 7;
+  let depth = 0;
+  let value = "";
+  while (j < js.length) {
+    const ch = js[j];
+    if (ch === "$" && js[j + 1] === "{") depth++;
+    else if (ch === "}" && depth > 0) depth--;
+    else if (ch === '"' && depth === 0) break;
+    value += ch;
+    j++;
+  }
+  value
+    .replace(/\$\{[^}]*\}/g, " ")
+    .split(/\s+/)
+    .forEach((c) => c && usedClasses.add(c.replace(/[^\w-]/g, "")));
+}
 const runtime = new Set(["is-active", "is-over", "is-ok", "is-err", "is-done", "is-locked"]);
 for (const c of usedClasses) if (!cssClasses.has(c) && !runtime.has(c)) note(`class "${c}" is used but never styled`);
 
@@ -85,7 +106,13 @@ for (const { sel, body } of rules) {
   if (inMarkup && !hideable && cls !== "scrim") note(`.${cls} is position: fixed but never carries the hidden attribute`);
 }
 
-// 5. structure ---------------------------------------------------------------
+// 5. inline SVG colours must not be percent-encoded (that is only for data URIs) --
+for (const m of html.matchAll(/<svg[\s\S]*?<\/svg>/gi)) {
+  const bad = m[0].match(/(?:fill|stroke|stop-color)="%[0-9a-f]{2}/i);
+  if (bad) note(`inline SVG uses a percent-encoded colour (${bad[0]}) — that only works inside a data URI, in the document it renders unpainted`);
+}
+
+// 6. structure ---------------------------------------------------------------
 const voidTags = new Set(["meta", "link", "br", "hr", "img", "input", "source", "path", "circle", "rect", "stop", "use", "area", "base", "col", "embed", "track", "wbr"]);
 const stack = [];
 for (const m of html.matchAll(/<(\/?)([a-z0-9]+)([^>]*?)(\/?)>/gi)) {
