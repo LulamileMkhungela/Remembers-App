@@ -28,6 +28,8 @@
     </div>
   </header>
 
+  <div class="warning-banner" id="indexWarning" hidden role="status"></div>
+
   <section class="search-card" aria-label="Ask your phone">
     <form class="search-row" id="searchForm" autocomplete="off">
       <span class="search-icon" aria-hidden="true">
@@ -127,7 +129,7 @@
   </main>
 
   <footer class="footer">
-    <span>Embeddings and OCR run locally — the model ships with the app, nothing is sent anywhere.</span>
+    <span>Embeddings and OCR run locally — the model ships with the app, nothing is sent anywhere. Check it with <span class="mono">npm run verify</span>.</span>
     <span class="footer-right" id="footerStats"></span>
   </footer>
 </div>

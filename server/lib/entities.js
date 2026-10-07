@@ -124,7 +124,10 @@ export function extractEntities(text) {
     const whole = Number(m[1].replace(/[ ,]/g, ""));
     if (!Number.isFinite(whole) || whole < 10) continue;
     const amount = whole + (m[2] ? Number(`0.${m[2]}`) : 0);
-    push(out, "money", `R${amount}`, `R${whole.toLocaleString("en-ZA")}${m[2] ? "." + m[2] : ""}`);
+    // group with a plain space: toLocaleString("en-ZA") emits U+00A0, which looks
+    // right but breaks copying the amount and any text match against it
+    const grouped = String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+    push(out, "money", `R${amount}`, `R${grouped}${m[2] ? "." + m[2] : ""}`);
   }
 
   EMAIL_RE.lastIndex = 0;

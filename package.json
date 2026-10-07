@@ -5,10 +5,13 @@
   "description": "Your Phone Remembers - on-device semantic memory search for screenshots, photos, notes and saved pages",
   "type": "module",
   "scripts": {
+    "prestart": "node tools/ensure-deps.mjs",
     "start": "node server/server.js",
     "verify": "node tools/verify.mjs",
-    "samples": "python3 tools/gen-samples.py",
-    "test:ui": "node tools/ui-test.mjs"
+    "check:ui": "node tools/check-ui.mjs",
+    "test:queries": "node tools/test-queries.mjs",
+    "test:ui": "node tools/ui-test.mjs",
+    "samples": "python3 tools/gen-samples.py"
   },
   "dependencies": {
     "onnxruntime-node": "1.14.0",

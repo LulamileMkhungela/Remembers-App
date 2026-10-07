@@ -63,10 +63,13 @@ Then ask the two questions above, or any of these:
 | what did I spend on groceries? | `R456.90` — the receipt photo's total |
 | what is my medical aid claim reference? | `CLM448120` — the email |
 
-Check the environment at any time with:
+Check everything at any time:
 
 ```bash
-npm run verify
+npm run verify        # model + OCR self-test on this machine
+npm run check:ui      # static UI integrity: hidden elements, ids, classes, tags
+npm run test:queries  # 14 demo questions, against a running server
+npm run test:ui       # 37 checks driving the real DOM in a running server
 ```
 
 ---
@@ -126,9 +129,13 @@ samples/
   gallery/         19 generated screenshots/photos (real PNGs, really OCR'd)
   notes.json       22 notes, messages, emails and saved pages
 tools/
-  gen-samples.py   regenerates the sample phone data with Pillow
-  verify.mjs       environment + model self-test
-  dev-reload.sh    restart the server / rebuild the index (dev helper)
+  gen-samples.py     regenerates the sample phone data with Pillow
+  verify.mjs         environment + model self-test
+  check-ui.mjs       static UI integrity checks (see below)
+  test-queries.mjs   question -> expected value regression test
+  ui-test.mjs        headless DOM test against a running server
+  ensure-deps.mjs    runs on `npm start`; installs packages if node_modules is gone
+  dev-reload.sh      restart the server / rebuild the index (dev helper)
 ```
 
 The embedding model is `Xenova/all-MiniLM-L6-v2` (quantised ONNX, 384 dims), vendored
@@ -161,6 +168,32 @@ computed in-process, and the index lives in `data/` (git-ignored). There is no m
 API, no telemetry and no network call at runtime.
 
 ---
+
+## Why there is a `check:ui` script
+
+Two bugs shipped in the first UI pass and neither showed up in a DOM test, because a
+DOM test has no layout engine:
+
+- `.drawer` and `.pipeline` set `display: flex`. An author `display` declaration beats
+  the user-agent `[hidden] { display: none }` rule, so **both drawers and the pipeline
+  strip were on screen before any interaction** — the import panel sat over the right
+  half of the page.
+- `.drawer-body` had `overflow: auto` but no `flex: 1; min-height: 0` inside the
+  fixed-height flex drawer, so a long memory was cut off instead of scrolling.
+
+`tools/check-ui.mjs` now fails the build on that whole class of mistake: it parses
+`index.html`, `styles.css` and `app.js` and checks that
+
+1. every element carrying `hidden` has a `[hidden]` rule that actually wins the
+   cascade (and reports exactly which rule would defeat it),
+2. every id `app.js` looks for exists in the markup,
+3. every class used anywhere has a rule,
+4. every `position: fixed` panel can be hidden,
+5. the HTML tags balance and grid tracks are shrinkable (`minmax(0, …)`).
+
+`tools/ui-test.mjs` then checks the same behaviour at runtime — the drawers start
+hidden, only one overlay opens at a time, the page scroll-locks while one is open and
+releases it on close.
 
 ## Notes
 

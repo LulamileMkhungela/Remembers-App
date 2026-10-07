@@ -88,8 +88,10 @@ library from zero.
 ## 5. If a dev asks (30 s)
 
 ```bash
-npm run verify     # model + tokenizer + similarity + OCR self-test
-npm run test:ui    # drives the real DOM against the running server
+npm run verify        # model + tokenizer + similarity + OCR self-test
+npm run check:ui      # static UI integrity (hidden elements, ids, classes, layout traps)
+npm run test:queries  # the 14 demo questions, each asserted against the value it must return
+npm run test:ui       # 37 checks driving the real DOM against the running server
 ```
 
 `npm run verify` prints the model directory, a related/unrelated similarity pair,

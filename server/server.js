@@ -240,7 +240,15 @@ const server = http.createServer(async (req, res) => {
         embedder: embedder.stats,
         ocr: ocr.summary,
         store: store.summary(),
-        seed: { running: seedState.running, stage: seedState.stage, done: seedState.done, total: seedState.total },
+        seed: {
+          running: seedState.running,
+          stage: seedState.stage,
+          done: seedState.done,
+          total: seedState.total,
+          error: seedState.error,
+          failed: seedState.finished?.failed || 0,
+          errors: seedState.finished?.errors || [],
+        },
         dataDir: DATA_DIR,
         commit: process.env.REMEMBERS_COMMIT || null,
       });

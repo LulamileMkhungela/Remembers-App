@@ -44,7 +44,7 @@ export async function seedSamples({ store, ingestor, embedder }, { onProgress = 
   const images = sampleManifest();
   const notes = sampleNotes();
   const total = images.length + notes.length;
-  const result = { images: 0, notes: 0, skipped: 0, total, ocrMs: 0, startedAt: Date.now() };
+  const result = { images: 0, notes: 0, skipped: 0, failed: 0, total, ocrMs: 0, startedAt: Date.now(), errors: [] };
 
   if (!force && store.size > 0) {
     onProgress("done", total, total, "already indexed");
@@ -56,7 +56,9 @@ export async function seedSamples({ store, ingestor, embedder }, { onProgress = 
   for (const item of images) {
     const file = path.join(GALLERY, item.file);
     if (!fs.existsSync(file)) {
-      done++;
+      result.failed++;
+      result.errors.push(`${item.file}: file missing from samples/gallery`);
+      onProgress("error", ++done, total, `${item.file}: file missing`);
       continue;
     }
     try {
@@ -71,6 +73,8 @@ export async function seedSamples({ store, ingestor, embedder }, { onProgress = 
       }
       onProgress("ocr", ++done, total, item.file);
     } catch (err) {
+      result.failed++;
+      if (result.errors.length < 5) result.errors.push(`${item.file}: ${err.message}`);
       onProgress("error", ++done, total, `${item.file}: ${err.message}`);
     }
   }
@@ -82,12 +86,18 @@ export async function seedSamples({ store, ingestor, embedder }, { onProgress = 
       else result.notes++;
       onProgress("notes", ++done, total, item.title);
     } catch (err) {
+      result.failed++;
+      if (result.errors.length < 5) result.errors.push(`${item.title}: ${err.message}`);
       onProgress("error", ++done, total, `${item.title}: ${err.message}`);
     }
   }
 
   store.persist();
   const finished = { ...result, indexed: store.size, finishedAt: Date.now(), ms: Date.now() - result.startedAt };
-  onProgress("done", total, total, `${store.size} memories indexed`);
+  const label = result.failed
+    ? `${store.size} memories indexed, ${result.failed} failed`
+    : `${store.size} memories indexed`;
+  onProgress("done", total, total, label);
+  if (result.failed) console.error(`[seed] ${result.failed} item(s) failed, first: ${result.errors[0]}`);
   return finished;
 }

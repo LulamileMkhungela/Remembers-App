@@ -102,6 +102,7 @@ async function refreshStatus() {
       indexLabel.textContent = `${health.store.total} memories in index`;
       indexDot.className = "dot dot-good";
     }
+    showIndexWarning(health);
     await refreshStats();
     return !seed.running;
   } catch (err) {
@@ -109,6 +110,29 @@ async function refreshStatus() {
     $("#indexDot").className = "dot dot-warn";
     return true;
   }
+}
+
+/* If nothing could be read, say why - a silent empty index looks like a broken app. */
+function showIndexWarning(health) {
+  const seed = health.seed || {};
+  const failures = (seed.failed || 0) + (seed.errors?.length ? 0 : 0);
+  const banner = $("#indexWarning");
+  const total = health.store?.total || 0;
+  const detail = seed.error || seed.errors?.[0] || "";
+
+  if (!seed.running && total === 0 && (failures > 0 || detail)) {
+    banner.hidden = false;
+    banner.innerHTML = `<b>Nothing could be indexed.</b> ${esc(
+      detail || "OCR or the embedding model failed to start."
+    )} — run <span class="mono">npm install</span> then reload, or check the server log.`;
+    return;
+  }
+  if (!seed.running && failures > 0) {
+    banner.hidden = false;
+    banner.innerHTML = `<b>${failures} item(s) could not be read.</b> ${esc(detail)}`;
+    return;
+  }
+  banner.hidden = true;
 }
 
 async function refreshStats() {
@@ -146,9 +170,10 @@ function formatBytes(b) {
 
 /* ---------------------------------------------------------------- gallery --- */
 
-async function loadGallery() {
+async function loadGallery({ seedResults = false } = {}) {
   const { documents } = await api("/api/documents?limit=90&sort=recent");
   state.documents = documents;
+  if (seedResults && !state.last) renderRecent(documents);
   const gallery = $("#gallery");
   if (!documents.length) {
     gallery.innerHTML = `<p class="muted">Indexed screenshots, photos, notes and pages appear here.</p>`;
@@ -320,6 +345,50 @@ function bindFollowUps(scope) {
   });
 }
 
+function scoreBars(breakdown) {
+  if (!breakdown) return "";
+  return ["semantic", "keyword", "coverage", "entity", "phrase"]
+    .map((key) => {
+      const v = Math.max(0.08, Math.min(1, Number(breakdown[key]) || 0));
+      return `<i style="height:${Math.round(v * 11)}px" title="${key}: ${breakdown[key]}"></i>`;
+    })
+    .join("");
+}
+
+function resultCard(doc, { score, breakdown, reasons = [], snippet, queryTerms = [] } = {}) {
+  const card = el("article", "result");
+  const chips = [
+    ...reasons.map((x) => `<span class="result-chip evidence">${esc(x)}</span>`),
+    ...(doc.entities || []).slice(0, 3).map((e) => `<span class="result-chip">${esc(e.type)}: ${esc(e.label)}</span>`),
+  ].join("");
+  const snip = snippet || doc.snippet;
+  card.innerHTML = `
+    <div class="result-thumb">
+      ${doc.fileUrl ? `<img src="${doc.fileUrl}" alt="" loading="lazy" />` : `<span class="glyph">${KIND_GLYPH[doc.kind] || "✎"}</span>`}
+    </div>
+    <div class="result-main">
+      <div class="result-top">
+        <span class="result-title">${esc(doc.title)}</span>
+        <span class="result-right">
+          ${breakdown ? `<span class="result-bars">${scoreBars(breakdown)}</span>` : ""}
+          ${score !== undefined ? `<span class="result-score">${(score * 100).toFixed(0)}% match</span>` : ""}
+        </span>
+      </div>
+      <div class="result-meta">
+        <span class="badge badge-soft">${esc(doc.source)}</span>
+        <span>${esc(doc.kind)}</span>
+        <span>·</span>
+        <span>${esc(absoluteDate(doc.capturedAt))} (${esc(relativeDate(doc.capturedAt))})</span>
+        ${doc.location ? `<span>·</span><span>${esc(doc.location)}</span>` : ""}
+        ${doc.textSource === "ocr" ? `<span>·</span><span title="Text read from the image">OCR ${doc.ocr?.confidence ?? "–"}%</span>` : ""}
+      </div>
+      <div class="result-snippet">${highlightSnippet(snip)}</div>
+      ${chips ? `<div class="result-chips">${chips}</div>` : ""}
+    </div>`;
+  card.addEventListener("click", () => openDrawer(doc.id, reasons));
+  return card;
+}
+
 function renderResults(data) {
   const body = $("#resultsBody");
   const results = data.results;
@@ -330,45 +399,24 @@ function renderResults(data) {
   }
   const list = el("div", "result-list");
   for (const r of results) {
-    const card = el("article", "result");
-    const bars = ["semantic", "keyword", "coverage", "entity", "phrase"]
-      .map((key) => {
-        const v = Math.max(0.06, Math.min(1, Number(r.breakdown[key]) || 0));
-        return `<i style="height:${Math.round(v * 12)}px" title="${key}: ${r.breakdown[key]}"></i>`;
-      })
-      .join("");
-    const chips = [
-      ...(r.reasons || []).map((x) => `<span class="result-chip evidence">${esc(x)}</span>`),
-      ...(r.entities || []).slice(0, 3).map((e) => `<span class="result-chip">${esc(e.type)}: ${esc(e.label)}</span>`),
-    ].join("");
-    card.innerHTML = `
-      <div class="result-thumb">
-        ${r.fileUrl ? `<img src="${r.fileUrl}" alt="" loading="lazy" />` : `<span class="glyph">${KIND_GLYPH[r.kind] || "✎"}</span>`}
-      </div>
-      <div class="result-main">
-        <div class="result-top">
-          <span class="result-title">${esc(r.title)}</span>
-          <span class="result-score">${(r.score * 100).toFixed(0)}% match</span>
-        </div>
-        <div class="result-meta">
-          <span class="badge badge-soft">${esc(r.source)}</span>
-          <span>${esc(r.kind)}</span>
-          <span>·</span>
-          <span>${esc(absoluteDate(r.capturedAt))} (${esc(relativeDate(r.capturedAt))})</span>
-          ${r.location ? `<span>·</span><span>${esc(r.location)}</span>` : ""}
-          ${r.textSource === "ocr" ? `<span>·</span><span title="Text read from the image">OCR ${r.ocr?.confidence ?? "–"}%</span>` : ""}
-        </div>
-        <div class="result-snippet">${highlightSnippet(r.snippet)}</div>
-        <div class="result-chips">${chips}</div>
-      </div>
-      <div class="result-bars">${bars}</div>`;
-    card.addEventListener("click", () => openDrawer(r.id, r.reasons || []));
-    list.appendChild(card);
+    list.appendChild(resultCard(r, { score: r.score, breakdown: r.breakdown, reasons: r.reasons }));
   }
   body.innerHTML = "";
   body.appendChild(list);
-  const note = data.filterNote ? `<p class="muted small">${esc(data.filterNote)}</p>` : "";
-  if (note) body.insertAdjacentHTML("beforeend", note);
+  if (data.filterNote) body.insertAdjacentHTML("beforeend", `<p class="muted small">${esc(data.filterNote)}</p>`);
+}
+
+/* Before the first question the panel shows what the phone holds, so the page is
+   never a blank slate - every card is ready to open. */
+function renderRecent(documents) {
+  const body = $("#resultsBody");
+  const recent = documents.slice(0, 6);
+  $("#resultsBadge").textContent = `${documents.length} in the index`;
+  if (!recent.length) return;
+  const list = el("div", "result-list");
+  for (const doc of recent) list.appendChild(resultCard(doc, {}));
+  body.innerHTML = `<p class="muted small">Recently remembered — ask a question above to search all of it by meaning.</p>`;
+  body.appendChild(list);
 }
 
 function renderConnections(data) {
@@ -425,6 +473,7 @@ function renderTimeline(data) {
 /* ----------------------------------------------------------------- drawer --- */
 
 async function openDrawer(docId, reasons = []) {
+  $("#importDrawer").hidden = true;
   let doc = state.documents.find((d) => d.id === docId);
   try {
     const fresh = await api(`/api/documents/${docId}`);
@@ -437,15 +486,21 @@ async function openDrawer(docId, reasons = []) {
   state.drawer.tab = doc.fileUrl ? "image" : "text";
   $("#drawerTitle").textContent = doc.title;
   $("#drawerMeta").textContent = `${doc.source} · ${doc.kind} · ${absoluteDate(doc.capturedAt)}`;
-  $("#scrim").hidden = false;
   $("#drawer").hidden = false;
+  syncScrim();
   document.querySelectorAll("#drawer .tab").forEach((t) => t.classList.toggle("is-active", t.getAttribute("data-tab") === state.drawer.tab));
   renderDrawer(reasons);
 }
 
 function closeDrawer() {
   $("#drawer").hidden = true;
-  $("#scrim").hidden = true;
+  syncScrim();
+}
+
+function syncScrim() {
+  const anyOpen = !$("#drawer").hidden || !$("#importDrawer").hidden;
+  $("#scrim").hidden = !anyOpen;
+  document.body.classList.toggle("is-locked", anyOpen);
 }
 
 async function renderDrawer(reasons = []) {
@@ -586,13 +641,14 @@ function highlightTerms(node, terms) {
 /* ----------------------------------------------------------------- import --- */
 
 function openImport() {
+  $("#drawer").hidden = true;
   $("#importDrawer").hidden = false;
-  $("#scrim").hidden = false;
+  syncScrim();
 }
 
 function closeImport() {
   $("#importDrawer").hidden = true;
-  $("#scrim").hidden = true;
+  syncScrim();
 }
 
 function progressRow(name) {
@@ -633,7 +689,7 @@ async function uploadFiles(files) {
     }
     $("#importStatus").textContent = `${res.counts.created} image(s) indexed, ${res.counts.skipped} already known, ${res.counts.errors} failed.`;
     await refreshStats();
-    await loadGallery();
+    await loadGallery({ seedResults: true });
     await loadSuggestions();
   } catch (err) {
     rows.forEach((row) => {
@@ -665,7 +721,7 @@ async function saveNote() {
     $("#noteBody").value = "";
     $("#noteTitle").value = "";
     await refreshStats();
-    await loadGallery();
+    await loadGallery({ seedResults: true });
     if (state.query) runSearch(state.query);
   } catch (err) {
     $("#importStatus").textContent = `Failed: ${err.message}`;
@@ -680,7 +736,8 @@ async function rebuildIndex() {
   $("#importStatus").textContent = "re-indexing with OCR…";
   await waitForSeed();
   $("#importStatus").textContent = "Index rebuilt.";
-  await loadGallery();
+  state.last = null;
+  await loadGallery({ seedResults: true });
   await refreshStats();
 }
 
@@ -762,8 +819,39 @@ function bindEvents() {
   });
 }
 
+const HERO_QUESTIONS = [
+  {
+    q: "What was that website with the cheap flights I found?",
+    hint: "finds a screenshot from April you never named",
+  },
+  {
+    q: "What was the name of the person who recommended that mechanic?",
+    hint: "joins a WhatsApp chat, a note and a trip plan",
+  },
+];
+
+function renderAnswerIntro() {
+  $("#answerBody").innerHTML = `
+    <p class="muted">Ask something you half-remember. The answer is assembled from your own screenshots,
+      notes, photos and saved pages — with the evidence underneath.</p>
+    <div class="try-grid">
+      ${HERO_QUESTIONS.map(
+        (h, i) => `<button class="try-card" data-hero="${i}" type="button"><b>“${esc(h.q)}”</b><span>${esc(h.hint)}</span></button>`
+      ).join("")}
+    </div>`;
+  $("#answerBody").querySelectorAll("[data-hero]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const text = HERO_QUESTIONS[Number(btn.getAttribute("data-hero"))].q;
+      $("#query").value = text;
+      runSearch(text);
+    });
+  });
+}
+
 async function init() {
   bindEvents();
+  renderAnswerIntro();
+  $("#answerBadge").textContent = "waiting for a question";
   await refreshStatus();
   if (!state.stats || state.stats.total === 0) {
     const health = await api("/api/health");
@@ -773,7 +861,7 @@ async function init() {
     }
   }
   await loadSuggestions();
-  await loadGallery();
+  await loadGallery({ seedResults: true });
   await refreshStats();
   const params = new URLSearchParams(location.search);
   const q = params.get("q");

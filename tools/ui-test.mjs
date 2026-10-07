@@ -50,6 +50,15 @@ console.log("\n1. boot the app");
 await import(path.join(ROOT, "public/app.js"));
 await sleep(3500);
 
+// regression: author display rules used to beat [hidden], so both drawers and the
+// pipeline strip were on screen before any interaction
+check("memory drawer starts hidden", $("#drawer").hidden === true);
+check("import drawer starts hidden", $("#importDrawer").hidden === true);
+check("scrim starts hidden", $("#scrim").hidden === true);
+check("pipeline strip starts hidden", $("#pipeline").hidden === true);
+check("page is not scroll-locked at rest", document.body.classList.contains("is-locked") === false);
+check("hero questions offered before the first search", $$("#answerBody [data-hero]").length === 2);
+check("recent memories fill the results panel", $$("#resultsBody .result").length >= 6, `${$$("#resultsBody .result").length} cards`);
 check("status pill shows the on-device model", /MiniLM|loading/.test($("#embedLabel").textContent), $("#embedLabel").textContent.trim());
 check("index pill reports memories", /\d+ memories/.test($("#indexLabel").textContent), $("#indexLabel").textContent.trim());
 check("suggestion chips rendered", $$("#suggestions .chip").length >= 4, `${$$("#suggestions .chip").length} chips`);
@@ -74,6 +83,9 @@ console.log("\n3. open a memory (click the top result)");
 $$("#resultsBody .result")[0].dispatchEvent(new window.Event("click", { bubbles: true }));
 await sleep(1200);
 check("drawer opened", $("#drawer").hidden === false);
+check("scrim shown behind it", $("#scrim").hidden === false);
+check("page scroll locked while open", document.body.classList.contains("is-locked") === true);
+check("import drawer stays closed", $("#importDrawer").hidden === true);
 check("drawer title set", $("#drawerTitle").textContent.length > 3, $("#drawerTitle").textContent);
 check("viewer or text block present", $$("#drawerBody .viewer, #drawerBody .text-block").length >= 1);
 
@@ -89,6 +101,7 @@ for (const tab of ["text", "analysis", "related"]) {
 $("#drawerClose").dispatchEvent(new window.Event("click", { bubbles: true }));
 await sleep(200);
 check("drawer closes", $("#drawer").hidden === true);
+check("scrim and lock released", $("#scrim").hidden === true && document.body.classList.contains("is-locked") === false);
 
 console.log("\n5. kind filter");
 const noteSeg = $$("#kindFilter .seg").find((s) => s.dataset.kind === "note");
@@ -103,6 +116,7 @@ await sleep(1800);
 console.log("\n6. import panel");
 $("#openImport").dispatchEvent(new window.Event("click", { bubbles: true }));
 check("import drawer opens", $("#importDrawer").hidden === false);
+check("only one overlay at a time", $("#drawer").hidden === true);
 $("#noteTitle").value = "Test memory from the UI harness";
 $("#noteBody").value = "Bought a new bike helmet at Cycle Lab for R749, receipt in the cubby hole. Invoice number INV90210.";
 $("#saveNote").dispatchEvent(new window.Event("click", { bubbles: true }));
